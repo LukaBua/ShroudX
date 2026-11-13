@@ -1,0 +1,27 @@
+# Python virtual environment
+.venv/
+venv/
+ENV/
+
+# Python bytecode & caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.ruff_cache/
+
+# Data and cutout downloads / cache
+cache/
+downloads/
+*.fits
+*.fits.gz
+
+# Frontend build output
+dist/
+build/
+.parcel-cache/
+node_modules/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
