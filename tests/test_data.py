@@ -586,8 +586,7 @@ def test_fetch_cutouts_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
         [
             "--ra",
             "08h55m10.831s",
-            "--dec",
-            "-07d14m42.53s",
+            "--dec=-07d14m42.53s",
             "--fov",
             "240",
             "--cache-dir",
