@@ -1,6 +1,6 @@
 # API contract
 
-Version 1. Owner: Luka. Consumers: Shayan (frontend and `app.py`), everyone writing tests.
+Version 1.1. Owner: Luka. Consumers: Shayan (frontend and `app.py`), everyone writing tests.
 
 This file is the single source of truth for what the backend returns and what the frontend expects. Change it only through Luka, who announces every change to the whole team. Example values below are illustrative, not real data.
 
@@ -15,7 +15,7 @@ This file is the single source of truth for what the backend returns and what th
 
 ## Shared query parameters
 
-These apply to `/api/resolve` (first four only), `/api/meta` and `/api/image.png`.
+These apply to `/api/resolve` (`target`, `ra` and `dec` only), `/api/meta` and `/api/image.png`.
 
 | Parameter | Type | Default | Rules |
 | --- | --- | --- | --- |
@@ -29,7 +29,7 @@ These apply to `/api/resolve` (first four only), `/api/meta` and `/api/image.png
 
 Only `/api/image.png` also takes `index` (integer, 0-based, position in the `frames` list returned by `/api/meta` for the same parameters). It is required when `mode=blink` and ignored when `mode=stack` or `mode=diff`.
 
-With `mode=diff`, `/api/image.png` also takes `epoch_a` and `epoch_b` (integers matching `epochs[].epoch` in `/api/meta`; defaults: the first and the last epoch). The image is the signed difference, later minus earlier, with a symmetric stretch around zero. Both epochs must use the same detector and wavelength window; if their mean wavelengths differ by more than half the window width, `/api/meta` adds a warning when the request is for `mode=diff`.
+With `mode=diff`, `/api/image.png` also takes `epoch_a` and `epoch_b` (integers matching `epochs[].epoch` in `/api/meta`; defaults: the first and the last epoch). The image is the signed difference, later minus earlier, with a symmetric stretch around zero. Both epochs must use the same detector and wavelength window; if their mean wavelengths differ by more than half of `max_width` (0.05 micrometres with the default 0.10), `/api/meta` adds a warning when the request is for `mode=diff`.
 
 UI-only parameters, kept in the page URL but never sent to the API: `speed` (milliseconds per frame, 50 to 2000) and `frame` (current frame index).
 
@@ -53,6 +53,7 @@ Every error uses the same JSON body.
 | 404 | `no_coverage` | The archive returned no images for this position. |
 | 404 | `not_cached` | The server runs in cache mode and this position is not cached. |
 | 404 | `unknown_target` | The name could not be resolved and is not in the offline table. |
+| 422 | `insufficient_data` | The archive has coverage, but there are too few epochs or frames for the requested computation (for example `/api/motion` with fewer than 2 epochs). |
 | 502 | `archive_unreachable` | The archive (IRSA) could not be reached in live or auto mode. The server does not fall back to synthetic data. |
 | 500 | `internal_error` | Anything unexpected. The `message` is safe to show. |
 
@@ -160,7 +161,7 @@ Runs the whole pipeline up to grouping and epoch splitting and describes the res
 | `n_frames` | integer | Length of `frames`. |
 | `frames` | list | One entry per frame in blink order (oldest first). `index` is what `/api/image.png` takes. `version` is the processing version, or null. |
 | `epochs` | list | Observation passes, split where consecutive frames are more than 30 days apart. |
-| `stretch` | object | The one display stretch shared by every frame in this sequence. The page may show it but must not change it. |
+| `stretch` | object | The one display stretch shared by every frame in `mode=blink` and by the `mode=stack` image. The page may show it but must not change it. It does not apply to `mode=diff`, which has its own symmetric stretch (see `/api/image.png`). |
 | `warnings` | string list | Plain-language notes: too few frames, window wider than 0.10 micrometres, mixed processing versions, proper-motion hints, and so on. |
 
 `frames[].epoch` matches `epochs[].epoch`.
@@ -177,7 +178,7 @@ Rules:
 
 1. The image has the size given by `image_shape` in `/api/meta` for the same parameters.
 2. North is up and east is left.
-3. Every image for one parameter set uses the same stretch, so blinking is not disturbed by changing contrast.
+3. Every `blink` and `stack` image for one parameter set uses the `stretch` from `/api/meta`, so blinking is not disturbed by changing contrast. `mode=diff` images use a symmetric stretch around zero with one fixed limit for the whole result; that limit (in units of sigma) is returned in the response header `X-Diff-Limit`.
 4. Errors use the JSON error format above, not an image.
 
 ## Phase 2 endpoints (draft)
@@ -237,7 +238,7 @@ Same parameters as `/api/meta`. Returns:
 }
 ```
 
-`verdict` is `AGREE`, `UNINFORMATIVE` or `DISAGREE` when the target is in `data/benchmarks.csv`, otherwise null. Errors: 404 for no coverage, 422 for too few epochs or frames.
+`verdict` is `AGREE`, `UNINFORMATIVE` or `DISAGREE` when the target is in `data/benchmarks.csv`, otherwise null. Errors: 404 `no_coverage` for no coverage, 422 `insufficient_data` for too few epochs or frames.
 
 ### GET /api/movers
 
@@ -253,3 +254,8 @@ Until the real endpoints exist, the frontend can serve static JSON files shaped 
 2. Luka edits this file and announces the change to everyone at once.
 3. Owners update their code and tests the same day.
 4. Never change a field's name, type or meaning without updating this file.
+
+## Changelog
+
+- 1.1: `/api/resolve` takes only `target`, `ra`, `dec`. Added the 422 `insufficient_data` error. Stated that `stretch` in `/api/meta` applies to blink and stack only, and added the `X-Diff-Limit` header for diff images. The diff wavelength warning threshold is now half of `max_width`.
+- 1.0: first version.
