@@ -294,8 +294,11 @@ def _evaluate_wavelength_um(
     wave_hdu = hdul["WCS-WAVE"]
     wave_hdr = wave_hdu.header
 
-    # 1. Try spectral WCS with key="W" (and fallback to default key=" ") on WCS-WAVE or IMAGE.
-    for target_hdu, keys in ((wave_hdu, ("W", " ")), (hdul["IMAGE"], ("W",))):
+    # 1. Try spectral WCS with key="W" (and fallback to default key=" ") on IMAGE or WCS-WAVE.
+    # Per IRSA SPHEREx tutorial, key="W" on IMAGE header references the WCS-WAVE BinTable,
+    # and SIP must be disabled when evaluating the spectral WCS so IMAGE's celestial SIP
+    # coefficients are not applied to the wavelength lookup table coordinates.
+    for target_hdu, keys in ((hdul["IMAGE"], ("W",)), (wave_hdu, ("W", " "))):
         hdr = target_hdu.header
         for key in keys:
             if key == "W" and not any(k.endswith("W") for k in hdr.keys()):
@@ -303,11 +306,20 @@ def _evaluate_wavelength_um(
             if key == " " and "CTYPE1" not in hdr and "CRVAL1" not in hdr:
                 continue
             try:
+                hdr_no_sip = hdr.copy()
+                sip_exact = {"A_ORDER", "B_ORDER", "AP_ORDER", "BP_ORDER", "A_DMAX", "B_DMAX"}
+                for sip_key in list(hdr_no_sip.keys()):
+                    if sip_key in sip_exact or (
+                        sip_key.startswith(("A_", "B_", "AP_", "BP_"))
+                        and any(ch.isdigit() for ch in sip_key)
+                    ):
+                        del hdr_no_sip[sip_key]
                 with warnings_suppressed():
-                    w_wcs = WCS(header=hdr, fobj=hdul, key=key, relax=False)
+                    w_wcs = WCS(header=hdr_no_sip, fobj=hdul, key=key, relax=False)
+                    w_wcs.sip = None
                 vals = w_wcs.pixel_to_world_values(px, py)
                 vals_tuple = vals if isinstance(vals, tuple) else (vals,)
-                # Check CTYPE/CUNIT to pick the wavelength coordinate axis.
+                # Check CTYPE/CUNIT/CNAME to pick the wavelength coordinate axis.
                 ctypes = [str(w_wcs.wcs.ctype[i]).upper() for i in range(w_wcs.naxis)]
                 cunits = [str(w_wcs.wcs.cunit[i]).lower() for i in range(w_wcs.naxis)]
                 chosen_val: float | None = None
@@ -317,11 +329,7 @@ def _evaluate_wavelength_um(
                         chosen_val = float(np.asarray(vals_tuple[idx]).item())
                         chosen_unit = cu
                         break
-                if chosen_val is None and len(vals_tuple) == 1:
-                    chosen_val = float(np.asarray(vals_tuple[0]).item())
-                    chosen_unit = cunits[0] if cunits else ""
-                if chosen_val is None and len(vals_tuple) >= 1 and target_hdu is wave_hdu:
-                    # In SPHEREx WCS-WAVE, axis 1 (or axis 0 in 0-based) is wavelength
+                if chosen_val is None and len(vals_tuple) >= 1:
                     chosen_val = float(np.asarray(vals_tuple[0]).item())
                     chosen_unit = cunits[0] if cunits else ""
                 if chosen_val is not None and np.isfinite(chosen_val) and chosen_val > 0:
@@ -530,30 +538,6 @@ def _filter_kept_hdus(hdul: fits.HDUList) -> fits.HDUList:
                     name=name,
                 )
             )
-
-    # Also preserve any lookup table HDUs referenced by WCS-WAVE (e.g. Tabular/distortion tables)
-    # other than PSF so astropy's spectral WCS with fobj=hdul continues to work if needed.
-    for hdu in hdul:
-        ext_name = str(hdu.name).upper()
-        if ext_name not in KEPT_HDU_NAMES and ext_name != "PSF" and ext_name != "":
-            if isinstance(hdu, fits.BinTableHDU):
-                kept.append(
-                    fits.BinTableHDU(
-                        data=hdu.data,
-                        header=hdu.header.copy(),
-                        name=hdu.name,
-                        ver=hdu.ver,
-                    )
-                )
-            elif isinstance(hdu, fits.ImageHDU) and "WCS" in ext_name:
-                kept.append(
-                    fits.ImageHDU(
-                        data=np.array(hdu.data, copy=True) if hdu.data is not None else None,
-                        header=hdu.header.copy(),
-                        name=hdu.name,
-                        ver=hdu.ver,
-                    )
-                )
 
     return fits.HDUList(kept)
 
