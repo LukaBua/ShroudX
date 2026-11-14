@@ -1,0 +1,134 @@
+{
+  "epochs": [
+    {
+      "epoch": 0,
+      "mjd": 60935.379897000006,
+      "ra": 76.95657727940011,
+      "dec": 30.40118574084393,
+      "sigma_arcsec": 0.006422976192928384,
+      "n_frames": 3,
+      "x": 32.47411006057552,
+      "y": 32.6476638903747,
+      "radius_px": 0.0010443863728338836
+    },
+    {
+      "epoch": 1,
+      "mjd": 61098.64613,
+      "ra": 76.95622540437282,
+      "dec": 30.401203166373147,
+      "sigma_arcsec": 0.005365057959010348,
+      "n_frames": 3,
+      "x": 32.65176466911539,
+      "y": 32.63746338498922,
+      "radius_px": 0.0008723671478065606
+    },
+    {
+      "epoch": 2,
+      "mjd": 61297.856926,
+      "ra": 76.9564130635646,
+      "dec": 30.401219426117766,
+      "sigma_arcsec": 0.005521471538645888,
+      "n_frames": 3,
+      "x": 32.55701931879878,
+      "y": 32.627945658728294,
+      "radius_px": 0.0008978002501863233
+    }
+  ],
+  "fit": {
+    "pm_arcsec_per_yr": 0.5271013543889611,
+    "pm_sigma": 0.10411621329578638,
+    "position_angle_deg": 282.0123467835596,
+    "pa_sigma": 10.508514550825208,
+    "parallax_arcsec": 0.43418976988502944,
+    "parallax_sigma": 0.04261204975069446,
+    "chi2_reduced": 149.78513414472653,
+    "n_epochs": 3,
+    "significance": 5.062625096549618,
+    "uncertainty_scaled": true
+  },
+  "benchmark": {
+    "literature_pm_arcsec_per_yr": 0.021577344600297782,
+    "literature_parallax_arcsec": 0.01542,
+    "verdict": "DISAGREE",
+    "citation": "2007A&A...474..653V"
+  },
+  "warnings": [
+    "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
+    "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+    "Epoch 1: One or more frames in epoch included unreliable/saturated pixels in centroiding (excluded from flux).",
+    "Epoch 2: One or more frames in epoch included unreliable/saturated pixels in centroiding (excluded from flux).",
+    "Epoch 3: One or more frames in epoch included unreliable/saturated pixels in centroiding (excluded from flux).",
+    "Reduced chi-squared is 149.79 (> 1): parameter uncertainties inflated by sqrt(reduced_chi2) = 12.24.",
+    "Fit uncertainties were inflated because reduced chi-squared exceeds 1.",
+    "Epoch 1: One or more frames in epoch included unreliable/saturated pixels in centroiding (excluded from flux).; Epoch 2: One or more frames in epoch included unreliable/saturated pixels in centroiding (excluded from flux).; Epoch 3: One or more frames in epoch included unreliable/saturated pixels in centroiding (excluded from flux).; Reduced chi-squared is 149.79 (> 1): parameter uncertainties inflated by sqrt(reduced_chi2) = 12.24.; SYSTEMATIC: High reduced chi2 (149.79) indicates inter-frame WCS alignment residuals or unmodeled binary/photocentre motion.; SYSTEMATIC: Wavelength span across group is 0.097 um; chromatic centroid shift or LVF gradient may bias positions.; SYSTEMATIC: Unreliable/saturated pixels present in cutout; non-linear core may shift flux-weighted centroid.",
+    "Catalogue disagreement is unresolved; check WCS, chromatic centroids, binary photocentre, parallax and saturated/masked pixels. No tuning was applied."
+  ],
+  "synthetic": false,
+  "image_shape": [
+    65,
+    65
+  ],
+  "provenance": {
+    "data_mode": "cache",
+    "request": "/api/motion?target=RW+Aurigae&fov=398.0&detector=3&wmin=1.6394650262450243&wmax=1.736032431318227",
+    "frames": [
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W38_1A/l2b-v27-2026-237/3/level2_2025W38_1A_0538_2D3_spx_l2b-v27-2026-237.fits",
+        "mjd": 60935.108129,
+        "wavelength_um": 1.6588862021103274,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W38_1A/l2b-v27-2026-237/3/level2_2025W38_1A_0538_3D3_spx_l2b-v27-2026-237.fits",
+        "mjd": 60935.109621,
+        "wavelength_um": 1.6966829400787307,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W38_1A/l2b-v27-2026-237/3/level2_2025W38_1A_0691_1D3_spx_l2b-v27-2026-237.fits",
+        "mjd": 60935.921941,
+        "wavelength_um": 1.736032431318227,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W09_2A/l2b-v27-2026-229/3/level2_2026W09_2A_0224_2D3_spx_l2b-v27-2026-229.fits",
+        "mjd": 61098.644638,
+        "wavelength_um": 1.6394650262450243,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W09_2A/l2b-v27-2026-229/3/level2_2026W09_2A_0224_3D3_spx_l2b-v27-2026-229.fits",
+        "mjd": 61098.64613,
+        "wavelength_um": 1.6771829794034876,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W09_2A/l2b-v27-2026-229/3/level2_2026W09_2A_0224_4D3_spx_l2b-v27-2026-229.fits",
+        "mjd": 61098.647622,
+        "wavelength_um": 1.7151790085143719,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W38_1A/l2b-v27-2026-261/3/level2_2026W38_1A_0162_1D3_spx_l2b-v27-2026-261.fits",
+        "mjd": 61297.855434,
+        "wavelength_um": 1.6435944744498316,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W38_1A/l2b-v27-2026-261/3/level2_2026W38_1A_0162_2D3_spx_l2b-v27-2026-261.fits",
+        "mjd": 61297.856926,
+        "wavelength_um": 1.6814038091868044,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W38_1A/l2b-v27-2026-261/3/level2_2026W38_1A_0162_3D3_spx_l2b-v27-2026-261.fits",
+        "mjd": 61297.858418,
+        "wavelength_um": 1.7201233412046602,
+        "version": 27
+      }
+    ],
+    "benchmarks_sha256": "b9812b7307822f02c1dc3cf4a24521fb0dd6d0d91f420da306adc3e12392f077",
+    "command": "curl.exe --fail \"http://127.0.0.1:8000/api/motion?target=RW+Aurigae&fov=398.0&detector=3&wmin=1.6394650262450243&wmax=1.736032431318227\" --output \"results/motion-267c6a194707dec64bc2.json\"",
+    "instructions": "Run the server in the recorded data mode with the same data/cache and code."
+  }
+}

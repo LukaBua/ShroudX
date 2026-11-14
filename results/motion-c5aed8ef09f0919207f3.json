@@ -1,0 +1,150 @@
+{
+  "epochs": [
+    {
+      "epoch": 0,
+      "mjd": 60915.683378333335,
+      "ra": 269.4419124346029,
+      "dec": 4.770390945469483,
+      "sigma_arcsec": 0.03043357404376621,
+      "n_frames": 3,
+      "x": 13.541084732005096,
+      "y": 9.720128601822942,
+      "radius_px": 0.004948548625002635
+    },
+    {
+      "epoch": 1,
+      "mjd": 61114.034241999994,
+      "ra": 269.4454140379453,
+      "dec": 4.763475670085453,
+      "sigma_arcsec": 0.03616406306567381,
+      "n_frames": 2,
+      "x": 11.498471004939883,
+      "y": 13.768102411819957,
+      "radius_px": 0.00588033545783314
+    },
+    {
+      "epoch": 2,
+      "mjd": 61272.607266000006,
+      "ra": 269.4487799431254,
+      "dec": 4.763374059196916,
+      "sigma_arcsec": 0.02410438167181087,
+      "n_frames": 5,
+      "x": 9.534990191415737,
+      "y": 13.82757959920728,
+      "radius_px": 0.003919411653952987
+    }
+  ],
+  "fit": {
+    "pm_arcsec_per_yr": 33.535268603452344,
+    "pm_sigma": 13.593642502799286,
+    "position_angle_deg": 132.2138672282699,
+    "pa_sigma": 23.697739139010434,
+    "parallax_arcsec": 1.2366257050672684,
+    "parallax_sigma": 8.317463711556323,
+    "chi2_reduced": 162184.0888164713,
+    "n_epochs": 3,
+    "significance": 2.4669817965675174,
+    "uncertainty_scaled": true
+  },
+  "benchmark": {
+    "literature_pm_arcsec_per_yr": 10.393348518010786,
+    "literature_parallax_arcsec": 0.5469759000000001,
+    "verdict": "UNINFORMATIVE",
+    "citation": "2020yCat.1350....0G"
+  },
+  "warnings": [
+    "High proper-motion target (10.39 arcsec/yr): position propagated from epoch 2000.0 to SPHEREx epoch 2026.0 (source: 2020yCat.1350....0G).",
+    "This field may be too small for a fast-moving target; consider 300 arcseconds.",
+    "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
+    "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+    "Rejected 2 frame(s) below SNR threshold (5.0).",
+    "Reduced chi-squared is 162184.09 (> 1): parameter uncertainties inflated by sqrt(reduced_chi2) = 402.72.",
+    "Fit uncertainties were inflated because reduced chi-squared exceeds 1."
+  ],
+  "synthetic": false,
+  "image_shape": [
+    22,
+    22
+  ],
+  "provenance": {
+    "data_mode": "cache",
+    "request": "/api/motion?target=Barnard%27s+Star&fov=134.0&detector=2&wmin=1.4607397441064414&wmax=1.5536508972966872",
+    "frames": [
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_1D2_spx_l2b-v27-2026-230.fits",
+        "mjd": 60912.714147,
+        "wavelength_um": 1.5167716139108165,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W35_1A/l2b-v27-2026-230/2/level2_2025W35_1A_0146_2D2_spx_l2b-v27-2026-230.fits",
+        "mjd": 60912.715639,
+        "wavelength_um": 1.5536508972966872,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W35_2A/l2b-v27-2026-231/2/level2_2025W35_2A_0221_4D2_spx_l2b-v27-2026-231.fits",
+        "mjd": 60916.660556,
+        "wavelength_um": 1.4607397441064414,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W35_2A/l2b-v27-2026-231/2/level2_2025W35_2A_0418_1D2_spx_l2b-v27-2026-231.fits",
+        "mjd": 60917.67394,
+        "wavelength_um": 1.496168731779857,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W11_2A/l2b-v27-2026-234/2/level2_2026W11_2A_0501_2D2_spx_l2b-v27-2026-234.fits",
+        "mjd": 61114.033496,
+        "wavelength_um": 1.480526703333954,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W11_2A/l2b-v27-2026-234/2/level2_2026W11_2A_0501_3D2_spx_l2b-v27-2026-234.fits",
+        "mjd": 61114.034988,
+        "wavelength_um": 1.5162314782776602,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W11_2A/l2b-v27-2026-234/2/level2_2026W11_2A_0501_4D2_spx_l2b-v27-2026-234.fits",
+        "mjd": 61114.03648,
+        "wavelength_um": 1.5535579239390127,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/2/level2_2026W34_1A_0363_1D2_spx_l2b-v27-2026-243.fits",
+        "mjd": 61270.867116,
+        "wavelength_um": 1.5111540487337152,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W34_1A/l2b-v27-2026-243/2/level2_2026W34_1A_0363_2D2_spx_l2b-v27-2026-243.fits",
+        "mjd": 61270.868608,
+        "wavelength_um": 1.5475831020243367,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W34_2A/l2b-v27-2026-243/2/level2_2026W34_2A_0249_3D2_spx_l2b-v27-2026-243.fits",
+        "mjd": 61273.72267,
+        "wavelength_um": 1.4774429719916313,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W34_2A/l2b-v27-2026-243/2/level2_2026W34_2A_0264_1D2_spx_l2b-v27-2026-243.fits",
+        "mjd": 61273.788222,
+        "wavelength_um": 1.5025516523173865,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/qr3/level2/2026W34_2A/l2b-v27-2026-243/2/level2_2026W34_2A_0264_2D2_spx_l2b-v27-2026-243.fits",
+        "mjd": 61273.789714,
+        "wavelength_um": 1.5388545053852143,
+        "version": 27
+      }
+    ],
+    "benchmarks_sha256": "b9812b7307822f02c1dc3cf4a24521fb0dd6d0d91f420da306adc3e12392f077",
+    "command": "curl.exe --fail \"http://127.0.0.1:8000/api/motion?target=Barnard%27s+Star&fov=134.0&detector=2&wmin=1.4607397441064414&wmax=1.5536508972966872\" --output \"results/motion-c5aed8ef09f0919207f3.json\"",
+    "instructions": "Run the server in the recorded data mode with the same data/cache and code."
+  }
+}
