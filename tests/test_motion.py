@@ -532,3 +532,64 @@ def test_select_best_epoch_group_and_validate_target(
     assert rec.status == "AGREE"
     assert rec.n_epochs == 4
     assert rec.n_frames_used == 8
+
+
+def test_validate_target_handles_all_saturated_epochs_without_crashing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Target with all frames masked/saturated returns UNINFORMATIVE and writes valid CSV/MD."""
+    rng = np.random.default_rng(7)
+    wcs = make_tan_wcs(ra0=260.0, dec0=65.0)
+    yc, xc = 15, 15
+    saturated_frames: list[Frame] = []
+    for mjd in (60760.0, 60860.0, 60960.0):
+        base = make_synthetic_frame(
+            x_true=float(xc),
+            y_true=float(yc),
+            flux=5000.0,
+            sigma_noise=1.5,
+            mjd=mjd,
+            wcs=wcs,
+            rng=rng,
+        )
+        img = base.image.copy()
+        var = base.variance.copy()
+        mask = np.zeros(img.shape, dtype=bool)
+        mask[yc - 5 : yc + 6, xc - 5 : xc + 6] = True
+        img[mask] = np.nan
+        var[mask] = np.nan
+        unrel = mask.copy()
+        saturated_frames.append(
+            base.copy_with(
+                image=img,
+                variance=var,
+                mask=mask,
+                unreliable=unrel,
+                wavelength=3.5,
+                detector=4,
+                version=27,
+            )
+        )
+
+    monkeypatch.setattr(data, "get_frames", lambda *a, **kw: tuple(saturated_frames))
+    target = BenchmarkTarget(
+        name="Saturated_Mira",
+        ra=260.0,
+        dec=65.0,
+        pm_ra_arcsec_yr=0.002,
+        pm_dec_arcsec_yr=-0.008,
+        parallax_arcsec=0.003,
+        citation="Gaia DR3",
+    )
+    rec = validate_target(target, fov_deg=0.05, snr_threshold=5.0)
+    assert rec.status == "UNINFORMATIVE"
+    assert rec.pm_meas_arcsec_yr is None
+    assert rec.n_epochs == 0
+    assert rec.n_frames_used == 0
+    assert rec.n_frames_rejected == 3
+
+    csv_out = tmp_path / "val.csv"
+    md_out = tmp_path / "val.md"
+    write_validation_outputs([rec], csv_out, md_out, "pytest")
+    assert "N/A" in md_out.read_text(encoding="utf-8")
+    assert csv_out.exists()

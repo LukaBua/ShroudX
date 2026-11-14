@@ -18,7 +18,6 @@ import app as backend
 import coords
 import data
 import gaia
-from tests.test_app import frames  # noqa: F401 -- synthetic FITS fixture for image projection
 from scripts import fetch_gaia
 
 
@@ -50,8 +49,8 @@ class FakeGaiaTAP:
 
 def test_propagate_to_epoch_matches_hand_calculation() -> None:
     """propagate_to_epoch matches an exact hand calculation and flags missing proper motions."""
-    # Source 1: ra=120.0 deg, dec=60.0 deg (cos(60 deg) = 0.5), ref_epoch=2016.0 -> epoch=2026.0 (dt=10 yr)
-    # pmra = -1800.0 mas/yr -> d_ra = (-1800 * 10) / (3_600_000 * 0.5) = -0.01 deg -> ra = 119.99 deg
+    # Source 1: ra=120.0 deg, dec=60.0 deg (cos(60)=0.5), ref=2016.0 -> epoch=2026.0 (dt=10 yr)
+    # pmra=-1800.0 mas/yr -> d_ra=(-1800*10)/(3_600_000*0.5)=-0.01 deg -> ra=119.99 deg
     # pmdec = +3600.0 mas/yr -> d_dec = (+3600 * 10) / 3_600_000 = +0.01 deg -> dec = 60.01 deg
     # Source 2: missing pmra/pmdec -> keeps (ra, dec) = (120.05, 60.02) and sets pm_missing=True
     raw_rows = [
@@ -98,7 +97,7 @@ def test_propagate_to_epoch_matches_hand_calculation() -> None:
 
 
 def test_crossmatch_all_classification_cases() -> None:
-    """crossmatch classifies known_gaia_mover, gaia_source_inconsistent_pm, and no_gaia_counterpart."""
+    """crossmatch covers known_gaia_mover, gaia_source_inconsistent_pm, and no_gaia_counterpart."""
     # Gaia source 2001: high-PM mover moving from (269.452077, 4.693365) at 2016.0 to 2026.0
     # Gaia source 2002: nearly stationary background star at (133.7600, -7.2400)
     # Gaia source 2003: faint star lacking proper motion at (133.7800, -7.2500)
@@ -153,7 +152,7 @@ def test_crossmatch_all_classification_cases() -> None:
             "pmdec_sigma": 25.0,
             "epoch": 2026.0,
         },
-        # 2. Positional match with stationary Gaia star 2002, but candidate claims huge PM (8000 mas/yr)
+        # 2. Match with stationary Gaia star 2002, but candidate claims huge PM (8000 mas/yr)
         {
             "id": "cand_inconsistent",
             "ra": 133.7600,
@@ -211,7 +210,7 @@ def test_crossmatch_all_classification_cases() -> None:
 
 
 def test_query_gaia_cache_hit_avoids_second_query_and_empty_is_valid(tmp_path: Path) -> None:
-    """query_gaia caches results to disk, avoids a second TAP query on cache hit, and never invents rows."""
+    """query_gaia caches results, avoids a second TAP query on hit, and never invents rows."""
     rows = [
         {
             "source_id": 3002,
@@ -307,7 +306,7 @@ def test_query_gaia_cache_hit_avoids_second_query_and_empty_is_valid(tmp_path: P
 
 
 def test_query_gaia_unreachable_and_timeout_and_cache_miss(tmp_path: Path) -> None:
-    """query_gaia raises GaiaUnreachableError on TAP failure/timeout and GaiaNotCachedError in cache mode."""
+    """query_gaia raises GaiaUnreachableError on TAP failure and GaiaNotCachedError in cache."""
     with pytest.raises(gaia.GaiaNotCachedError):
         gaia.query_gaia(45.0, -15.0, 60.0, cache_root=tmp_path, mode="cache")
 
@@ -347,7 +346,7 @@ def test_query_gaia_unreachable_and_timeout_and_cache_miss(tmp_path: Path) -> No
 def test_api_catalog_endpoint_contract_and_error_modes(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, frames
 ) -> None:
-    """GET /api/catalog returns contract-compliant JSON, caps at 500 brightest, and handles 502/404."""
+    """GET /api/catalog returns contract JSON, caps at 500 brightest, and handles 502/404."""
     rows = [
         {
             "source_id": 9001,
@@ -415,7 +414,7 @@ def test_api_catalog_endpoint_contract_and_error_modes(
         assert miss_resp.status_code == 404
         assert miss_resp.json()["error"]["code"] == "not_cached"
 
-    # When Gaia TAP is unreachable on an uncached field: returns 502 archive_unreachable with no fallback
+    # When Gaia TAP is unreachable on an uncached field: return 502 archive_unreachable
     monkeypatch.setattr(gaia, "Gaia", FakeGaiaTAP(error=OSError("Gaia TAP down")))
     with TestClient(app_auto, raise_server_exceptions=False) as client:
         err_resp = client.get(
@@ -499,3 +498,82 @@ def test_fetch_gaia_cli_caches_demo_targets_and_writes_results(
     by_name = {f["target"]: f for f in report["fields"]}
     assert by_name["Barnard's Star"]["target_crossmatch"]["classification"] == "known_gaia_mover"
     assert by_name["WISE 0855-0714"]["target_crossmatch"]["classification"] == "no_gaia_counterpart"
+
+
+def test_build_catalog_retains_high_pm_target_entering_small_fov_and_hits_240_cache(
+    tmp_path: Path,
+) -> None:
+    """build_catalog pads ref-epoch lookup before propagating and cuts at epoch."""
+    ra_center, dec_center = 269.4485, 4.73942
+    dt_yr = 2025.9 - gaia.GAIA_REF_EPOCH
+    # Barnard-like mover: starts ~102.6" south at 2016.0 and moves to the field center by 2025.9
+    barnard_dec_2016 = dec_center - (10.362394 * dt_yr) / 3600.0
+    # Outward mover: starts 78" north at 2016.0 (< 85") and exits past 85" by 2025.9
+    outward_dec_2016 = dec_center + 78.0 / 3600.0
+    rows = [
+        {
+            "source_id": 4472832130942575872,
+            "ra": ra_center,
+            "dec": barnard_dec_2016,
+            "pmra": 0.0,
+            "pmdec": 10362.394,
+            "parallax": 546.98,
+            "phot_g_mean_mag": 8.19,
+            "ref_epoch": 2016.0,
+        },
+        {
+            "source_id": 1001,
+            "ra": ra_center,
+            "dec": dec_center + 20.0 / 3600.0,
+            "pmra": 0.0,
+            "pmdec": 0.0,
+            "parallax": 1.0,
+            "phot_g_mean_mag": 14.0,
+            "ref_epoch": 2016.0,
+        },
+        {
+            "source_id": 1002,
+            "ra": ra_center,
+            "dec": outward_dec_2016,
+            "pmra": 0.0,
+            "pmdec": 2000.0,
+            "parallax": 1.0,
+            "phot_g_mean_mag": 15.0,
+            "ref_epoch": 2016.0,
+        },
+    ]
+    cpath = (
+        gaia._gaia_cache_dir(tmp_path)
+        / f"{gaia.gaia_cache_key(ra_center, dec_center, 240.0)}.json"
+    )
+    gaia._write_cache_file(
+        cpath,
+        ra=ra_center,
+        dec=dec_center,
+        radius_arcsec=240.0,
+        table=gaia._rows_to_table(rows, max_rows=None),
+    )
+
+    small_fov = gaia.build_catalog(
+        ra_center,
+        dec_center,
+        85.0,
+        epoch=2025.9,
+        cache_root=tmp_path,
+        mode="cache",
+    )
+    returned_ids = {s["source_id"] for s in small_fov["sources"]}
+    assert 4472832130942575872 in returned_ids
+    assert 1001 in returned_ids
+    assert 1002 not in returned_ids
+
+    # Also verify a 300" FOV radius (~213") still uses the pre-cached 240" cone cleanly
+    wide_fov = gaia.build_catalog(
+        ra_center,
+        dec_center,
+        213.0,
+        epoch=2025.9,
+        cache_root=tmp_path,
+        mode="cache",
+    )
+    assert 4472832130942575872 in {s["source_id"] for s in wide_fov["sources"]}

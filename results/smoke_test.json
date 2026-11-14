@@ -1,5 +1,5 @@
 {
-  "verdict": "FAIL",
+  "verdict": "PASS",
   "base_url": "http://127.0.0.1:8000",
   "target": "WISE 0855-0714",
   "repeats": 3,
@@ -12,36 +12,34 @@
       "url": "http://127.0.0.1:8000/health",
       "status_code": 200,
       "verdict": "PASS",
-      "latency_ms_mean": 6.38,
-      "latency_ms_sigma": 5.25,
+      "latency_ms_mean": 26.3,
+      "latency_ms_sigma": 20.63,
       "reasons": []
     },
     "/api/meta": {
       "url": "http://127.0.0.1:8000/api/meta?target=WISE+0855-0714",
       "status_code": 200,
       "verdict": "PASS",
-      "latency_ms_mean": 382.7,
-      "latency_ms_sigma": 660.22,
+      "latency_ms_mean": 494.33,
+      "latency_ms_sigma": 839.58,
       "reasons": []
     },
     "/api/image.png": {
       "url": "http://127.0.0.1:8000/api/image.png?target=WISE+0855-0714&mode=blink&index=0",
       "status_code": 200,
       "verdict": "PASS",
-      "latency_ms_mean": 0.98,
-      "latency_ms_sigma": 0.28,
+      "latency_ms_mean": 11.79,
+      "latency_ms_sigma": 8.55,
       "reasons": []
     },
     "/api/motion": {
       "url": "http://127.0.0.1:8000/api/motion?target=WISE+0855-0714",
-      "status_code": 404,
-      "verdict": "FAIL",
-      "latency_ms_mean": 0.51,
-      "latency_ms_sigma": 0.07,
-      "reasons": [
-        "Expected HTTP 200 on /api/motion, got 404"
-      ]
+      "status_code": 200,
+      "verdict": "PASS",
+      "latency_ms_mean": 17.03,
+      "latency_ms_sigma": 8.89,
+      "reasons": []
     }
   },
-  "command": "python scripts/smoke_test.py --url http://127.0.0.1:8000"
+  "command": "python scripts/smoke_test.py"
 }

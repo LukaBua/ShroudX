@@ -28,7 +28,7 @@ dev = [
 ]
 
 [tool.setuptools]
-py-modules = ["app", "coords", "data", "flags", "frame", "processing"]
+py-modules = ["app", "coords", "data", "flags", "frame", "gaia", "motion", "processing"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

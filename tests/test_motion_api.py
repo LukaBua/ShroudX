@@ -13,7 +13,6 @@ from fastapi.testclient import TestClient
 import app as backend
 import coords
 import data
-from tests.test_app import frames  # noqa: F401 -- pytest fixture
 
 POSITION = {"ra": "133.76", "dec": "-7.24"}
 
@@ -118,7 +117,11 @@ def test_motion_scaled_errors_are_forwarded(motion_api):
 def test_motion_errors_and_optional_view_params(motion_api, monkeypatch, frames):
     client, calls, _, _, application = motion_api
     assert client.get("/api/motion").status_code == 400
-    assert client.get("/api/motion", params={**POSITION, "mode": "diff", "epoch_a": "ignored"}).status_code == 200
+    resp_diff_mode = client.get(
+        "/api/motion",
+        params={**POSITION, "mode": "diff", "epoch_a": "ignored"},
+    )
+    assert resp_diff_mode.status_code == 200
     assert len(calls) == 1
     application.state.products.entries.clear()
     monkeypatch.setattr(data, "get_frames", lambda *a, **k: frames[:2])

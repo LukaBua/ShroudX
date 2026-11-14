@@ -1,0 +1,142 @@
+{
+  "epochs": [
+    {
+      "epoch": 0,
+      "mjd": 60801.450117,
+      "ra": 133.7605960806749,
+      "dec": -7.241758036876848,
+      "sigma_arcsec": 1.4335149080158658,
+      "n_frames": 1,
+      "x": 24.0170235991455,
+      "y": 24.249485442965433,
+      "radius_px": 0.23309185496192938
+    },
+    {
+      "epoch": 1,
+      "mjd": 60986.855176,
+      "ra": 133.7590568192223,
+      "dec": -7.242362443801054,
+      "sigma_arcsec": 1.4782194031356222,
+      "n_frames": 1,
+      "x": 24.910866701454317,
+      "y": 24.60328449604149,
+      "radius_px": 0.24036087855863775
+    },
+    {
+      "epoch": 2,
+      "mjd": 61022.231084,
+      "ra": 133.75950880121619,
+      "dec": -7.2421780315237365,
+      "sigma_arcsec": 1.483584449103078,
+      "n_frames": 1,
+      "x": 24.64840277704942,
+      "y": 24.49533556781118,
+      "radius_px": 0.24123324375659805
+    }
+  ],
+  "fit": {
+    "pm_arcsec_per_yr": 10.893957571188617,
+    "pm_sigma": 11.25087520737037,
+    "position_angle_deg": 141.98670273584582,
+    "pa_sigma": 38.48138753947341,
+    "parallax_arcsec": -4.664514998231271,
+    "parallax_sigma": 3.7537156733619805,
+    "chi2_reduced": 0.11126616128086828,
+    "n_epochs": 3,
+    "significance": 0.9682764558664788,
+    "uncertainty_scaled": false
+  },
+  "benchmark": {
+    "literature_pm_arcsec_per_yr": 8.151545861368874,
+    "literature_parallax_arcsec": 0.439,
+    "verdict": "UNINFORMATIVE",
+    "citation": "2021ApJS..253....7K"
+  },
+  "warnings": [
+    "High proper-motion target (8.15 arcsec/yr): position propagated from epoch 2000.0 to SPHEREx epoch 2026.0 (source: 2021ApJS..253....7K).",
+    "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
+    "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+    "Epoch 4: All 4 frames in epoch rejected (SNR < 5.0).",
+    "Rejected 8 frame(s) below SNR threshold (5.0)."
+  ],
+  "synthetic": false,
+  "image_shape": [
+    49,
+    49
+  ],
+  "provenance": {
+    "data_mode": "auto",
+    "request": "/api/motion?target=WISE+0855-0714&fov=300&detector=5&wmin=4.1447736280634215&wmax=4.224863273486272",
+    "frames": [
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/5/level2_2025W19_1B_0231_4D5_spx_l2b-v27-2026-197.fits",
+        "mjd": 60801.450117,
+        "wavelength_um": 4.1447736280634215,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_1D5_spx_l2b-v27-2026-247.fits",
+        "mjd": 60986.853684,
+        "wavelength_um": 4.153165067839173,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_2D5_spx_l2b-v27-2026-247.fits",
+        "mjd": 60986.855176,
+        "wavelength_um": 4.1889694624922456,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_3D5_spx_l2b-v27-2026-247.fits",
+        "mjd": 60986.856669,
+        "wavelength_um": 4.224863273486272,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0391_1D5_spx_l2b-v27-2026-210.fits",
+        "mjd": 61021.8922,
+        "wavelength_um": 4.153135419421957,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0479_1D5_spx_l2b-v27-2026-210.fits",
+        "mjd": 61022.231084,
+        "wavelength_um": 4.188809205953361,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0512_1D5_spx_l2b-v27-2026-210.fits",
+        "mjd": 61022.368105,
+        "wavelength_um": 4.224682820966444,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0519_1D5_spx_l2b-v27-2026-244.fits",
+        "mjd": 61162.673655,
+        "wavelength_um": 4.222119647081147,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_1D5_spx_l2b-v27-2026-244.fits",
+        "mjd": 61163.215717,
+        "wavelength_um": 4.180312170754152,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_2D5_spx_l2b-v27-2026-244.fits",
+        "mjd": 61163.217209,
+        "wavelength_um": 4.216367784889965,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W20_1A/l2b-v27-2026-246/5/level2_2026W20_1A_0214_1D5_spx_l2b-v27-2026-246.fits",
+        "mjd": 61171.567192,
+        "wavelength_um": 4.222164081796975,
+        "version": 27
+      }
+    ],
+    "benchmarks_sha256": "b9812b7307822f02c1dc3cf4a24521fb0dd6d0d91f420da306adc3e12392f077",
+    "command": "curl.exe --fail \"http://127.0.0.1:8000/api/motion?target=WISE+0855-0714&fov=300&detector=5&wmin=4.1447736280634215&wmax=4.224863273486272\" --output \"results/motion-26e317408d8f3f83dd7d.json\"",
+    "instructions": "Run the server in the recorded data mode with the same data/cache and code."
+  }
+}

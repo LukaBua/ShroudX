@@ -14,7 +14,6 @@ from astropy.wcs import WCS
 from experiments.flicker import (
     FlickerStar,
     collect_star_photometry,
-    compute_window_scatter,
     load_flicker_stars,
     run_flicker_experiment,
 )
@@ -51,7 +50,7 @@ def _make_synthetic_star_frame(
     unreliable_offset: tuple[int, int] | None = None,
     seed: int = 0,
 ) -> Frame:
-    """Generate a synthetic SPHEREx frame with a stationary star having a known flux-wavelength slope."""
+    """Generate a synthetic SPHEREx frame for a stationary star with a flux-wavelength slope."""
     ny, nx = 25, 25
     wcs = _make_tan_wcs(star.ra, star.dec, ny=ny, nx=nx)
     x0, y0 = wcs.world_to_pixel_values(star.ra, star.dec)
@@ -148,7 +147,10 @@ def test_known_flux_wavelength_slope_recovers_expected_scatter(tmp_path: Path) -
     assert exp.recommendation.single_value_supported is True
     assert exp.recommendation.max_window_below_threshold_um is not None
     assert 0.10 <= exp.recommendation.max_window_below_threshold_um <= 0.14
-    assert exp.recommendation.recommended_max_width_um == exp.recommendation.max_window_below_threshold_um
+    assert (
+        exp.recommendation.recommended_max_width_um
+        == exp.recommendation.max_window_below_threshold_um
+    )
 
     # Verify JSON and PNG outputs were written
     json_path = results_dir / "flicker.json"
@@ -161,7 +163,7 @@ def test_known_flux_wavelength_slope_recovers_expected_scatter(tmp_path: Path) -
 
 
 def test_skipped_frame_counting_on_masked_and_unreliable_aperture() -> None:
-    """Frames where the circular aperture touches masked or unreliable pixels are skipped and counted."""
+    """Frames whose circular aperture hits masked or unreliable pixels are skipped and counted."""
     star = FlickerStar(name="MaskStar", ra=248.1676, dec=66.7550, source="gaia_dr3")
     frames = [
         # 5 clean frames
@@ -200,7 +202,7 @@ def test_skipped_frame_counting_on_masked_and_unreliable_aperture() -> None:
 def test_no_result_written_when_fewer_than_three_stars_have_five_usable_frames(
     tmp_path: Path,
 ) -> None:
-    """run_flicker_experiment raises ValueError and writes no files if <3 stars have >=5 usable frames."""
+    """run_flicker_experiment raises ValueError and writes nothing if <3 stars have >=5 frames."""
     stars = [
         FlickerStar(name="Good1", ra=10.0, dec=10.0, source="gaia_dr3"),
         FlickerStar(name="Good2", ra=20.0, dec=20.0, source="gaia_dr3"),
@@ -210,7 +212,9 @@ def test_no_result_written_when_fewer_than_three_stars_have_five_usable_frames(
     def _loader(st: FlickerStar) -> list[Frame]:
         if st.name in ("Good1", "Good2"):
             return [
-                _make_synthetic_star_frame(st, wavelength_um=4.05 + 0.02 * i, mjd=60900.0 + i, seed=i)
+                _make_synthetic_star_frame(
+                    st, wavelength_um=4.05 + 0.02 * i, mjd=60900.0 + i, seed=i
+                )
                 for i in range(6)
             ]
         # TooFew has 6 total frames, but 2 have masked aperture pixels -> only 4 usable (< 5)
@@ -246,3 +250,28 @@ def test_load_flicker_stars_reads_repository_csv() -> None:
         assert np.isfinite(st.ra)
         assert np.isfinite(st.dec)
         assert st.source
+
+
+def test_flicker_uses_covering_cached_field_in_cache_mode(tmp_path: Path) -> None:
+    """An off-center Gaia star resolves its covering bundled 480 arcsec bucket offline."""
+    from astropy.io import fits
+
+    import data as data_mod
+    from experiments.flicker import _find_covering_cached_field
+
+    cache_dir = tmp_path / "cache"
+    bucket_dir = cache_dir / data_mod.cache_key_for(133.7598, -7.2422, 480)
+    bucket_dir.mkdir(parents=True)
+    # Minimal index.csv marks the covering 480" bucket as valid
+    (bucket_dir / "index.csv").write_text(
+        "filename,mjd,wavelength,bandpass,uri\n",
+        encoding="utf-8",
+    )
+    fits.HDUList([fits.PrimaryHDU()]).writeto(bucket_dir / "dummy.fits")
+
+    # Star 191" away from field center is inside 0.45 * 480" = 216"
+    hit = _find_covering_cached_field(cache_dir, 133.7085662, -7.2571743)
+    assert hit == (pytest.approx(133.7598), pytest.approx(-7.2422), pytest.approx(480.0))
+
+    # Star far outside is not matched
+    assert _find_covering_cached_field(cache_dir, 10.0, 20.0) is None

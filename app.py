@@ -18,8 +18,8 @@ import logging
 import math
 import os
 import re
-import threading
 import tempfile
+import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
@@ -39,10 +39,14 @@ from starlette.staticfiles import StaticFiles
 import coords
 import data
 import gaia
-import processing
 import motion
+import processing
 from frame import Frame
-from scripts.validate_motion import load_benchmarks, evaluate_criterion, investigate_systematics
+from scripts.validate_motion import (
+    evaluate_criterion,
+    investigate_systematics,
+    load_benchmarks,
+)
 
 ROOT = Path(__file__).resolve().parent
 LOG = logging.getLogger(__name__)
@@ -384,12 +388,21 @@ def build_products(
     resolved = resolve(selection.position)
     fov = selection.fov if selection.fov is not None else (resolved["suggested_fov_arcsec"] or 120)
     needs_irsa = _will_query_irsa(data_mode, cache_root, resolved["ra"], resolved["dec"], fov)
+    fetch_fov: float = fov
+    if data_mode != "synthetic":
+        try:
+            hit = data._find_cached_bucket(cache_root, resolved["ra"], resolved["dec"], fov)
+        except Exception:
+            hit = None
+        bucket = hit[1] if hit is not None else data.select_size_bucket(fov)
+        rotated = math.ceil(float(fov) * math.sqrt(2.0)) + 25.0
+        fetch_fov = max(float(fov), min(float(bucket), rotated))
 
     def _fetch() -> tuple[Any, ...]:
         return data.get_frames(
             resolved["ra"],
             resolved["dec"],
-            fov,
+            fetch_fov,
             mode=data_mode,
             cache_root=cache_root,
         )
@@ -512,7 +525,7 @@ def build_products(
 def difference_request(request: Request) -> tuple[int | None, int | None]:
     """Validate explicit epoch syntax before any archive work."""
     pair = integer(request, "epoch_a"), integer(request, "epoch_b")
-    for key, value in zip(("epoch_a", "epoch_b"), pair):
+    for key, value in zip(("epoch_a", "epoch_b"), pair, strict=True):
         if value is not None and value < 0:
             raise bad_input("Epoch identifiers must be non-negative integers.", key)
     return pair
@@ -522,7 +535,11 @@ def difference_product(product: Products, pair: tuple[int | None, int | None]):
     """Validate against the sequence and delegate scientific work to processing."""
     epochs = product.metadata["epochs"]
     if len(epochs) < 2:
-        raise APIError(422, "insufficient_data", "At least two epochs are required for difference imaging.")
+        raise APIError(
+            422,
+            "insufficient_data",
+            "At least two epochs are required for difference imaging.",
+        )
     a = epochs[0]["epoch"] if pair[0] is None else pair[0]
     b = epochs[-1]["epoch"] if pair[1] is None else pair[1]
     valid = {ep["epoch"] for ep in epochs}
@@ -535,7 +552,11 @@ def difference_limit(diff: np.ndarray) -> float:
     """Match the renderer's default symmetric percentile and supply it explicitly."""
     values = np.abs(diff[np.isfinite(diff)])
     if not values.size:
-        raise APIError(422, "insufficient_data", "The selected epochs have no overlapping usable pixels.")
+        raise APIError(
+            422,
+            "insufficient_data",
+            "The selected epochs have no overlapping usable pixels.",
+        )
     limit = float(np.percentile(values, processing.DEFAULT_DIFF_PERCENTILE))
     return limit if limit > 0 else float(np.max(values)) or 1.0
 
@@ -549,7 +570,11 @@ def motion_result(product: Products, selection: Selection, benchmarks_path: Path
     """
     groups = processing.split_epochs(product.aligned)
     if len(groups) < 2:
-        raise APIError(422, "insufficient_data", "At least two epochs are required to measure motion.")
+        raise APIError(
+            422,
+            "insufficient_data",
+            "At least two epochs are required to measure motion.",
+        )
     target = product.metadata["target"]
     try:
         fit = motion.measure_and_fit_epochs(groups.frames_by_epoch, target["ra"], target["dec"])
@@ -583,10 +608,15 @@ def motion_result(product: Products, selection: Selection, benchmarks_path: Path
             benchmark["verdict"] = verdict
             if verdict == "DISAGREE":
                 warnings.append(investigate_systematics(match, fit, product.aligned, verdict))
-                warnings.append("Catalogue disagreement is unresolved; check WCS, chromatic centroids, "
-                                "binary photocentre, parallax and saturated/masked pixels. No tuning was applied.")
+                warnings.append(
+                    "Catalogue disagreement is unresolved; check WCS, chromatic centroids, "
+                    "binary photocentre, parallax and saturated/masked pixels. "
+                    "No tuning was applied."
+                )
         else:
-            warnings.append("Synthetic motion is not compared with literature; benchmark verdict is unset.")
+            warnings.append(
+                "Synthetic motion is not compared with literature; benchmark verdict is unset."
+            )
     epochs = []
     height, width = product.metadata["image_shape"]
     for ep in fit.epochs:
@@ -600,9 +630,14 @@ def motion_result(product: Products, selection: Selection, benchmarks_path: Path
                            x=float(x) + .5, y=height - .5 - float(y),
                            radius_px=sigma / product.metadata["pixel_scale_arcsec"]))
     if len(epochs) < 2:
-        raise APIError(422, "insufficient_data", "Too few accepted epoch centroids to measure motion.")
+        raise APIError(
+            422,
+            "insufficient_data",
+            "Too few accepted epoch centroids to measure motion.",
+        )
     return dict(epochs=epochs, fit=dict(
-        pm_arcsec_per_yr=float(fit.pm_total_arcsec_yr), pm_sigma=float(fit.sigma_pm_total_arcsec_yr),
+        pm_arcsec_per_yr=float(fit.pm_total_arcsec_yr),
+        pm_sigma=float(fit.sigma_pm_total_arcsec_yr),
         position_angle_deg=float(fit.pa_deg), pa_sigma=float(fit.sigma_pa_deg),
         parallax_arcsec=fit.parallax_arcsec, parallax_sigma=fit.sigma_parallax_arcsec,
         chi2_reduced=float(fit.reduced_chi2) if math.isfinite(fit.reduced_chi2) else None,
@@ -621,15 +656,22 @@ def save_motion_result(body: dict[str, Any], product: Products, selection: Selec
                  wmin=product.metadata["wavelength_window_um"][0],
                  wmax=product.metadata["wavelength_window_um"][1])
     route = "/api/motion?" + urlencode(query)
+    frame_meta = [
+        dict(uri=f.uri, mjd=f.mjd, wavelength_um=f.wavelength, version=f.version)
+        for f in product.aligned
+    ]
     provenance = dict(data_mode=mode, request=route,
-                      frames=[dict(uri=f.uri, mjd=f.mjd, wavelength_um=f.wavelength, version=f.version)
-                              for f in product.aligned],
+                      frames=frame_meta,
                       benchmarks_sha256=hashlib.sha256(benchmarks_path.read_bytes()).hexdigest()
                       if benchmarks_path.exists() else None)
     key = hashlib.sha256(json.dumps(provenance, sort_keys=True).encode()).hexdigest()[:20]
     filename = f"motion-{key}.json"
-    provenance["command"] = f'curl.exe --fail "http://127.0.0.1:8000{route}" --output "results/{filename}"'
-    provenance["instructions"] = "Run the server in the recorded data mode with the same data/cache and code."
+    provenance["command"] = (
+        f'curl.exe --fail "http://127.0.0.1:8000{route}" --output "results/{filename}"'
+    )
+    provenance["instructions"] = (
+        "Run the server in the recorded data mode with the same data/cache and code."
+    )
     body["provenance"] = provenance
     results_root.mkdir(parents=True, exist_ok=True)
     path = None
@@ -687,7 +729,11 @@ def create_app(
     application.state.data_mode = data_mode
     application.state.cache_root = root
     motion_results = Path(results_root) if results_root is not None else ROOT / "results"
-    benchmark_file = Path(benchmarks_path) if benchmarks_path is not None else ROOT / "data" / "benchmarks.csv"
+    benchmark_file = (
+        Path(benchmarks_path)
+        if benchmarks_path is not None
+        else ROOT / "data" / "benchmarks.csv"
+    )
     application.state.request_timeout = timeout_sec
     application.state.irsa_concurrency = max_irsa
     application.state.irsa_semaphore = irsa_semaphore

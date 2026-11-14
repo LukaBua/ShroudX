@@ -11,7 +11,6 @@ from fastapi.testclient import TestClient
 
 import app as backend
 import gaia
-from tests.test_app import api, frames  # noqa: F401 -- pytest fixtures
 
 POSITION = {"ra": "133.76", "dec": "-7.24"}
 

@@ -1,6 +1,6 @@
-name,ra,dec,source
-RW Aurigae,76.956526,30.401438,gaia_dr3
-R Draconis,248.167611,66.754979,gaia_dr3
-BD+60 1753,268.105708,60.396361,gaia_dr3
-TYC 4212-1079-1,268.918427,65.857742,gaia_dr3
-2MASS J17583798+6646522,269.658312,66.781142,gaia_dr3
+name,ra,dec,source,notes
+Gaia DR3 5756956330854206592,133.7085662,-7.2571743,Gaia DR3 5756956330854206592,Isolated stationary star in WISE 0855 field (G=12.25 mag; pm=9.15 mas/yr; nearest neighbor sep=35.6 arcsec)
+Gaia DR3 156431234433162368,76.9484809,30.4496027,Gaia DR3 156431234433162368,Isolated stationary star in RW Aurigae field (G=12.59 mag; pm=2.43 mas/yr; nearest neighbor sep=29.3 arcsec)
+Gaia DR3 1648326843826192768,248.2132054,66.7054027,Gaia DR3 1648326843826192768,Isolated stationary star in R Draconis field (G=12.52 mag; pm=4.34 mas/yr; nearest neighbor sep=77.3 arcsec)
+Gaia DR3 4472832508888391168,269.4203024,4.7316128,Gaia DR3 4472832508888391168,Isolated stationary star in Barnard's Star field (G=13.03 mag; pm=9.17 mas/yr; nearest neighbor sep=24.7 arcsec)
+Gaia DR3 6412593435166417536,331.1718829,-56.7933374,Gaia DR3 6412593435166417536,Isolated stationary star in Epsilon Indi B field (G=13.93 mag; pm=5.33 mas/yr; nearest neighbor sep=87.5 arcsec)

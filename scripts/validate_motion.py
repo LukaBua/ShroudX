@@ -79,19 +79,19 @@ class ValidationRecord:
     name: str
     status: str
     pm_lit_arcsec_yr: float
-    pm_meas_arcsec_yr: float
-    sigma_pm_arcsec_yr: float
+    pm_meas_arcsec_yr: float | None
+    sigma_pm_arcsec_yr: float | None
     pm_ra_lit_arcsec_yr: float
-    pm_ra_meas_arcsec_yr: float
-    sigma_pm_ra_arcsec_yr: float
+    pm_ra_meas_arcsec_yr: float | None
+    sigma_pm_ra_arcsec_yr: float | None
     pm_dec_lit_arcsec_yr: float
-    pm_dec_meas_arcsec_yr: float
-    sigma_pm_dec_arcsec_yr: float
+    pm_dec_meas_arcsec_yr: float | None
+    sigma_pm_dec_arcsec_yr: float | None
     parallax_lit_arcsec: float | None
     parallax_meas_arcsec: float | None
     sigma_parallax_arcsec: float | None
-    diff_sigma: float
-    reduced_chi2: float
+    diff_sigma: float | None
+    reduced_chi2: float | None
     uncertainties_inflated: bool
     n_epochs: int
     n_frames_used: int
@@ -100,6 +100,13 @@ class ValidationRecord:
     wavelength_window_um: str
     citation: str
     diagnostics: str
+
+
+def _fmt_opt(value: float | None, decimals: int, na: str = "") -> str:
+    """Format an optional float for CSV or Markdown output."""
+    if value is None or not np.isfinite(value):
+        return na
+    return f"{value:.{decimals}f}"
 
 
 def load_benchmarks(csv_path: Path) -> list[BenchmarkTarget]:
@@ -327,13 +334,52 @@ def validate_target(
         else None
     )
 
-    fit = measure_and_fit_epochs(
-        epoch_frame_groups=epoch_groups,
-        target_ra=target.ra,
-        target_dec=target.dec,
-        snr_threshold=snr_threshold,
-        fixed_parallax_arcsec=fixed_plx,
-    )
+    try:
+        fit = measure_and_fit_epochs(
+            epoch_frame_groups=epoch_groups,
+            target_ra=target.ra,
+            target_dec=target.dec,
+            snr_threshold=snr_threshold,
+            fixed_parallax_arcsec=fixed_plx,
+        )
+    except ValueError as exc:
+        ver_raw = flat_frames[0].version if flat_frames else None
+        ver_str = f"v{ver_raw}" if ver_raw is not None else "unknown"
+        has_unrel = any(
+            f.unreliable is not None and bool(np.any(f.unreliable))
+            for f in flat_frames
+        )
+        reason = (
+            "saturated/unreliable core masks target pixels"
+            if has_unrel
+            else "insufficient SNR or masked cutout"
+        )
+        return ValidationRecord(
+            name=target.name,
+            status="UNINFORMATIVE",
+            pm_lit_arcsec_yr=target.pm_total_arcsec_yr,
+            pm_meas_arcsec_yr=None,
+            sigma_pm_arcsec_yr=None,
+            pm_ra_lit_arcsec_yr=target.pm_ra_arcsec_yr,
+            pm_ra_meas_arcsec_yr=None,
+            sigma_pm_ra_arcsec_yr=None,
+            pm_dec_lit_arcsec_yr=target.pm_dec_arcsec_yr,
+            pm_dec_meas_arcsec_yr=None,
+            sigma_pm_dec_arcsec_yr=None,
+            parallax_lit_arcsec=target.parallax_arcsec,
+            parallax_meas_arcsec=None,
+            sigma_parallax_arcsec=None,
+            diff_sigma=None,
+            reduced_chi2=None,
+            uncertainties_inflated=False,
+            n_epochs=0,
+            n_frames_used=0,
+            n_frames_rejected=len(flat_frames),
+            version=ver_str,
+            wavelength_window_um=wave_label,
+            citation=target.citation,
+            diagnostics=f"SYSTEMATIC: {exc} ({reason}; {len(flat_frames)} frames rejected)",
+        )
 
     status, diff_sigma = evaluate_criterion(target, fit)
     diagnostics = investigate_systematics(target, fit, flat_frames, status)
@@ -417,31 +463,19 @@ def write_validation_outputs(
                     "name": r.name,
                     "status": r.status,
                     "pm_lit_arcsec_yr": f"{r.pm_lit_arcsec_yr:.5f}",
-                    "pm_meas_arcsec_yr": f"{r.pm_meas_arcsec_yr:.5f}",
-                    "sigma_pm_arcsec_yr": f"{r.sigma_pm_arcsec_yr:.5f}",
+                    "pm_meas_arcsec_yr": _fmt_opt(r.pm_meas_arcsec_yr, 5),
+                    "sigma_pm_arcsec_yr": _fmt_opt(r.sigma_pm_arcsec_yr, 5),
                     "pm_ra_lit_arcsec_yr": f"{r.pm_ra_lit_arcsec_yr:.5f}",
-                    "pm_ra_meas_arcsec_yr": f"{r.pm_ra_meas_arcsec_yr:.5f}",
-                    "sigma_pm_ra_arcsec_yr": f"{r.sigma_pm_ra_arcsec_yr:.5f}",
+                    "pm_ra_meas_arcsec_yr": _fmt_opt(r.pm_ra_meas_arcsec_yr, 5),
+                    "sigma_pm_ra_arcsec_yr": _fmt_opt(r.sigma_pm_ra_arcsec_yr, 5),
                     "pm_dec_lit_arcsec_yr": f"{r.pm_dec_lit_arcsec_yr:.5f}",
-                    "pm_dec_meas_arcsec_yr": f"{r.pm_dec_meas_arcsec_yr:.5f}",
-                    "sigma_pm_dec_arcsec_yr": f"{r.sigma_pm_dec_arcsec_yr:.5f}",
-                    "parallax_lit_arcsec": (
-                        f"{r.parallax_lit_arcsec:.5f}"
-                        if r.parallax_lit_arcsec is not None
-                        else ""
-                    ),
-                    "parallax_meas_arcsec": (
-                        f"{r.parallax_meas_arcsec:.5f}"
-                        if r.parallax_meas_arcsec is not None
-                        else ""
-                    ),
-                    "sigma_parallax_arcsec": (
-                        f"{r.sigma_parallax_arcsec:.5f}"
-                        if r.sigma_parallax_arcsec is not None
-                        else ""
-                    ),
-                    "diff_sigma": f"{r.diff_sigma:.2f}",
-                    "reduced_chi2": f"{r.reduced_chi2:.2f}",
+                    "pm_dec_meas_arcsec_yr": _fmt_opt(r.pm_dec_meas_arcsec_yr, 5),
+                    "sigma_pm_dec_arcsec_yr": _fmt_opt(r.sigma_pm_dec_arcsec_yr, 5),
+                    "parallax_lit_arcsec": _fmt_opt(r.parallax_lit_arcsec, 5),
+                    "parallax_meas_arcsec": _fmt_opt(r.parallax_meas_arcsec, 5),
+                    "sigma_parallax_arcsec": _fmt_opt(r.sigma_parallax_arcsec, 5),
+                    "diff_sigma": _fmt_opt(r.diff_sigma, 2),
+                    "reduced_chi2": _fmt_opt(r.reduced_chi2, 2),
                     "uncertainties_inflated": str(r.uncertainties_inflated),
                     "n_epochs": r.n_epochs,
                     "n_frames_used": r.n_frames_used,
@@ -488,10 +522,16 @@ def write_validation_outputs(
             else "N/A"
         )
         infl_tag = "*" if r.uncertainties_inflated else ""
+        pm_str = (
+            f"{r.pm_meas_arcsec_yr:.4f} +/- {r.sigma_pm_arcsec_yr:.4f}{infl_tag}"
+            if r.pm_meas_arcsec_yr is not None and r.sigma_pm_arcsec_yr is not None
+            else "N/A"
+        )
+        diff_str = _fmt_opt(r.diff_sigma, 2, na="N/A")
+        chi2_str = _fmt_opt(r.reduced_chi2, 2, na="N/A")
         lines.append(
             f"| {r.name} | **{r.status}** | {r.pm_lit_arcsec_yr:.4f} | "
-            f"{r.pm_meas_arcsec_yr:.4f} +/- {r.sigma_pm_arcsec_yr:.4f}{infl_tag} | "
-            f"{r.diff_sigma:.2f} | {plx_str} | {r.reduced_chi2:.2f} | "
+            f"{pm_str} | {diff_str} | {plx_str} | {chi2_str} | "
             f"{r.n_epochs} ({r.n_frames_used}/{r.n_frames_used + r.n_frames_rejected}) | "
             f"{r.version} | {r.wavelength_window_um} | {r.diagnostics} |"
         )
@@ -560,9 +600,13 @@ def main(argv: Sequence[str] | None = None) -> int:
                 fov_deg=args.fov,
                 snr_threshold=args.snr_threshold,
             )
+            pm_disp = (
+                f"{rec.pm_meas_arcsec_yr:.4f} +/- {rec.sigma_pm_arcsec_yr:.4f}"
+                if rec.pm_meas_arcsec_yr is not None and rec.sigma_pm_arcsec_yr is not None
+                else "N/A"
+            )
             print(
-                f"  -> {rec.status}: PM={rec.pm_meas_arcsec_yr:.4f} +/- "
-                f"{rec.sigma_pm_arcsec_yr:.4f} \"/yr (lit={rec.pm_lit_arcsec_yr:.4f}, "
+                f"  -> {rec.status}: PM={pm_disp} \"/yr (lit={rec.pm_lit_arcsec_yr:.4f}, "
                 f"epochs={rec.n_epochs}, frames={rec.n_frames_used})",
                 flush=True,
             )

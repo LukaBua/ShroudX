@@ -7,6 +7,7 @@ import copy
 import io
 import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -498,3 +499,67 @@ def test_product_cache_waiters_reuse_a_build_for_the_same_key():
         t.join(5)
     assert len(builds) == 1
     assert sorted(results) == [False, True, True]
+
+
+def test_build_products_pads_cutout_fetch_fov_to_preserve_rotated_corners(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    import math
+
+    from astropy.wcs import WCS
+
+    angle = math.radians(45.0)
+    cos_a, sin_a = math.cos(angle), math.sin(angle)
+    ny, nx = 78, 78  # 480" bucket at 6.15"/px
+    scale_deg = 6.15 / 3600.0
+    rot_wcs = WCS(naxis=2)
+    rot_wcs.wcs.ctype = ["RA---TAN", "DEC--TAN"]
+    rot_wcs.wcs.crval = [133.76, -7.24]
+    rot_wcs.wcs.crpix = [(nx + 1) / 2.0, (ny + 1) / 2.0]
+    rot_wcs.wcs.cdelt = [-scale_deg, scale_deg]
+    rot_wcs.wcs.pc = [[cos_a, -sin_a], [sin_a, cos_a]]
+    rot_wcs.wcs.cunit = ["deg", "deg"]
+    rot_wcs.wcs.radesys = "ICRS"
+    rot_hdr = rot_wcs.to_header()
+
+    seen_fovs = []
+
+    def fake_bucket(cache_root, ra, dec, fov):
+        return (tmp_path, 480, ())
+
+    def fake_get_frames(ra, dec, fov, **kwargs):
+        seen_fovs.append(fov)
+        out = []
+        for idx, mjd in enumerate((60900.0, 61080.0)):
+            hdul = _make_cutout_hdul(ny=ny, nx=nx, ra=ra, dec=dec, mjd=mjd, uri=f"u{idx}.fits")
+            hdul["IMAGE"].header.update(rot_hdr)
+            frame = data.frame_from_hdul(
+                hdul,
+                ra=ra,
+                dec=dec,
+                mjd=mjd,
+                uri=f"u{idx}.fits",
+                bandpass="SPHEREx-D5",
+            )
+            frame = data._crop_frame_to_fov(frame, ra=ra, dec=dec, fov_arcsec=fov)
+            out.append(frame)
+        return tuple(out)
+
+    monkeypatch.setattr(data, "_find_cached_bucket", fake_bucket)
+    monkeypatch.setattr(data, "get_frames", fake_get_frames)
+
+    sel = backend.Selection(
+        backend.Position(None, "133.76", "-7.24"),
+        fov=300,
+        detector=5,
+        wmin=None,
+        wmax=None,
+    )
+    prod = backend.build_products(sel, "cache", tmp_path)
+
+    assert len(seen_fovs) == 1
+    assert seen_fovs[0] == pytest.approx(450.0)
+    assert prod.metadata["fov_arcsec"] == 300
+    assert prod.metadata["image_shape"] == [49, 49]
+    # Without rotation padding, all four corners would be masked; with 450" fetch, none are masked
+    assert int(np.sum(prod.aligned[0].mask)) == 0

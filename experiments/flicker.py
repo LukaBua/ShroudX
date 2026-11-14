@@ -14,7 +14,8 @@ Pre-registered Pass / Fail and Decision Criteria (fixed before running on data):
      fractional flux difference
      $\\delta_{ij} = (F_i - F_j) / F_{\\mathrm{med}, s, d}$ and propagated fractional
      measurement variance
-     $\\sigma_{\\mathrm{phot}, ij}^2 = (\\sigma_{F, i}^2 + \\sigma_{F, j}^2) / F_{\\mathrm{med}, s, d}^2$.
+     $\\sigma_{\\mathrm{phot}, ij}^2 = (\\sigma_{F, i}^2 + \\sigma_{F, j}^2) /
+     F_{\\mathrm{med}, s, d}^2$.
    - For a window width $w$, across all same-star, same-detector pairs with
      $|\\lambda_i - \\lambda_j| < w$ (or $|t_i - t_j| < w$ for the time control),
      the observed RMS scatter is $S_{\\mathrm{obs}}(w) = \\sqrt{\\langle \\delta_{ij}^2 \\rangle}$,
@@ -40,6 +41,7 @@ import argparse
 import csv
 import json
 import math
+import re
 import shlex
 import sys
 from collections.abc import Callable, Sequence
@@ -185,7 +187,9 @@ class FlickerExperimentResult:
     plot_paths: list[str]
 
 
-def load_flicker_stars(csv_path: str | Path = _REPO_ROOT / "data" / "flicker_stars.csv") -> list[FlickerStar]:
+def load_flicker_stars(
+    csv_path: str | Path = _REPO_ROOT / "data" / "flicker_stars.csv",
+) -> list[FlickerStar]:
     """Load stationary star targets from ``data/flicker_stars.csv``.
 
     Args:
@@ -303,7 +307,12 @@ def measure_star_frame_photometry(
 
     img = np.asarray(frame.image, dtype=np.float64)
     var = np.asarray(frame.variance, dtype=np.float64)
-    bad = np.asarray(frame.mask, dtype=bool) | (~np.isfinite(img)) | (~np.isfinite(var)) | (var <= 0)
+    bad = (
+        np.asarray(frame.mask, dtype=bool)
+        | (~np.isfinite(img))
+        | (~np.isfinite(var))
+        | (var <= 0)
+    )
     if frame.unreliable is not None:
         bad = bad | np.asarray(frame.unreliable, dtype=bool)
 
@@ -536,7 +545,7 @@ def compute_window_scatter(
         excess_sq = max(0.0, mean_obs_sq - mean_noise_sq)
         excess_scatter = float(math.sqrt(excess_sq))
 
-        # Uncertainty on excess_scatter via propagation of mean excess variance u_k = df_k^2 - noise_k^2
+        # Uncertainty on excess_scatter via propagation of u_k = df_k^2 - noise_k^2
         u_k = sub_dflux_sq - sub_noise_sq
         if n_pairs >= 2:
             se_u = float(np.std(u_k, ddof=1) / math.sqrt(n_pairs))
@@ -598,7 +607,7 @@ def evaluate_recommendation(
             ),
         )
 
-    # Walk sorted widths and find the largest width w such that all populated w' <= w stay <= threshold
+    # Walk sorted widths to find largest w where all populated w' <= w stay <= threshold
     largest_below: float | None = None
     first_exceeding: WindowScatterPoint | None = None
     for pt in sorted(populated, key=lambda p: p.window):
@@ -616,11 +625,13 @@ def evaluate_recommendation(
             recommended_max_width_um=None,
             single_value_supported=False,
             justification=(
-                f"Even at the narrowest populated wavelength window (w = {narrowest.window:.2f} um, "
-                f"n_pairs = {narrowest.n_pairs}), the quadrature-subtracted excess scatter is "
-                f"{narrowest.excess_scatter * 100:.2f}% +/- {narrowest.excess_scatter_sigma * 100:.2f}%, "
+                f"Even at the narrowest populated wavelength window (w = {narrowest.window:.2f}"
+                f" um, n_pairs = {narrowest.n_pairs}), the quadrature-subtracted excess scatter "
+                f"is {narrowest.excess_scatter * 100:.2f}% +/- "
+                f"{narrowest.excess_scatter_sigma * 100:.2f}%, "
                 f"which exceeds the {threshold * 100:.1f}% threshold. The data do not support a "
-                "single max_width value without narrower wavelength filtering or per-source SED modelling."
+                "single max_width value without narrower wavelength filtering or "
+                "per-source SED modelling."
             ),
         )
 
@@ -652,9 +663,13 @@ def evaluate_recommendation(
     pt_at_rec = next(p for p in populated if p.window == largest_below)
     if not supported:
         reason = (
-            f"detector(s) {inconsistent_dets} exhibit excess scatter > {200 * threshold:.0f}% at w = {largest_below:.2f} um"
+            f"detector(s) {inconsistent_dets} exhibit excess scatter > "
+            f"{200 * threshold:.0f}% at w = {largest_below:.2f} um"
             if inconsistent_dets
-            else f"no frame pairs exist at w <= 0.10 um (narrowest populated bin is {narrowest_populated.window:.2f} um)"
+            else (
+                "no frame pairs exist at w <= 0.10 um "
+                f"(narrowest populated bin is {narrowest_populated.window:.2f} um)"
+            )
         )
         return FlickerRecommendation(
             threshold=float(threshold),
@@ -671,7 +686,8 @@ def evaluate_recommendation(
 
     exceed_note = (
         f" and rises above {threshold * 100:.1f}% at w = {first_exceeding.window:.2f} um "
-        f"({first_exceeding.excess_scatter * 100:.2f}% +/- {first_exceeding.excess_scatter_sigma * 100:.2f}%)"
+        f"({first_exceeding.excess_scatter * 100:.2f}% +/- "
+        f"{first_exceeding.excess_scatter_sigma * 100:.2f}%)"
         if first_exceeding is not None
         else " across the full tested range up to 0.40 um"
     )
@@ -682,9 +698,11 @@ def evaluate_recommendation(
         single_value_supported=True,
         justification=(
             f"Excess fractional flux scatter stays below the {threshold * 100:.1f}% threshold "
-            f"up to w = {largest_below:.2f} um (excess scatter = {pt_at_rec.excess_scatter * 100:.2f}% "
-            f"+/- {pt_at_rec.excess_scatter_sigma * 100:.2f}% across {pt_at_rec.n_pairs} pairs)"
-            f"{exceed_note}. Recommended processing.group_frames max_width = {largest_below:.2f} um."
+            f"up to w = {largest_below:.2f} um (excess scatter = "
+            f"{pt_at_rec.excess_scatter * 100:.2f}% +/- "
+            f"{pt_at_rec.excess_scatter_sigma * 100:.2f}% across {pt_at_rec.n_pairs} pairs)"
+            f"{exceed_note}. Recommended processing.group_frames "
+            f"max_width = {largest_below:.2f} um."
         ),
     )
 
@@ -693,7 +711,7 @@ def plot_normalised_flux_vs_wavelength(
     summaries: Sequence[StarPhotometrySummary],
     output_path: Path,
 ) -> Path:
-    """Plot normalised flux vs wavelength in plain black and white, one panel per star per detector."""
+    """Plot normalized flux vs wavelength in B&W, one panel per star per detector."""
     panels: list[tuple[str, int, DetectorPhotometrySeries]] = []
     for summary in summaries:
         for det, series in sorted(summary.detectors.items()):
@@ -782,8 +800,24 @@ def plot_excess_scatter_wavelength_and_time(
             color="0.80",
             label="Excess scatter +/- 1 sigma",
         )
-        ax_wl.plot(w_arr, ex_arr, "o-", color="black", linewidth=1.4, markersize=4.0, label="Excess scatter")
-        ax_wl.plot(w_arr, obs_arr, "s:", color="0.35", linewidth=1.0, markersize=3.5, label="Total observed scatter")
+        ax_wl.plot(
+            w_arr,
+            ex_arr,
+            "o-",
+            color="black",
+            linewidth=1.4,
+            markersize=4.0,
+            label="Excess scatter",
+        )
+        ax_wl.plot(
+            w_arr,
+            obs_arr,
+            "s:",
+            color="0.35",
+            linewidth=1.0,
+            markersize=3.5,
+            label="Total observed scatter",
+        )
 
     if recommendation.max_window_below_threshold_um is not None:
         ax_wl.axvline(
@@ -884,7 +918,11 @@ def _make_capped_tap_query(max_cutouts: int) -> Callable[[str], list[dict[str, A
             band_val = (
                 row["bandpass"]
                 if "bandpass" in colnames
-                else (row["energy_bandpassname"] if "energy_bandpassname" in colnames else row["band"])
+                else (
+                    row["energy_bandpassname"]
+                    if "energy_bandpassname" in colnames
+                    else row["band"]
+                )
             )
             if isinstance(uri_val, bytes):
                 uri_val = uri_val.decode("utf-8")
@@ -921,6 +959,51 @@ def _make_capped_tap_query(max_cutouts: int) -> Callable[[str], list[dict[str, A
         return thinned[:max_cutouts]
 
     return _tap_query
+
+
+_BUCKET_DIR_RE = re.compile(
+    r"^ra([+-]?\d+(?:\.\d+)?)_dec([+-]?\d+(?:\.\d+)?)_s(\d+)$"
+)
+
+
+def _angular_sep_arcsec(
+    ra1_deg: float, dec1_deg: float, ra2_deg: float, dec2_deg: float
+) -> float:
+    """Great-circle separation in arcseconds between two ICRS positions."""
+    ra1, dec1, ra2, dec2 = (math.radians(v) for v in (ra1_deg, dec1_deg, ra2_deg, dec2_deg))
+    dra = ra2 - ra1
+    ddec = dec2 - dec1
+    a = (
+        math.sin(ddec / 2.0) ** 2
+        + math.cos(dec1) * math.cos(dec2) * math.sin(dra / 2.0) ** 2
+    )
+    return math.degrees(2.0 * math.asin(min(1.0, math.sqrt(max(0.0, a))))) * 3600.0
+
+
+def _find_covering_cached_field(
+    cache_root: Path,
+    ra: float,
+    dec: float,
+) -> tuple[float, float, float] | None:
+    """Return ``(center_ra, center_dec, size_arcsec)`` of a cached cutout covering ``(ra, dec)``."""
+    if not cache_root.is_dir():
+        return None
+    best: tuple[float, float, tuple[float, float, float]] | None = None
+    for entry in cache_root.iterdir():
+        if not entry.is_dir():
+            continue
+        match = _BUCKET_DIR_RE.match(entry.name)
+        if match is None or not (entry / "index.csv").is_file():
+            continue
+        c_ra = float(match.group(1))
+        c_dec = float(match.group(2))
+        size_arcsec = float(match.group(3))
+        sep = _angular_sep_arcsec(c_ra, c_dec, ra, dec)
+        if sep <= 0.45 * size_arcsec:
+            score = (-size_arcsec, sep)
+            if best is None or score < (best[0], best[1]):
+                best = (score[0], score[1], (c_ra, c_dec, size_arcsec))
+    return None if best is None else best[2]
 
 
 def _recover_partial_cache(
@@ -967,7 +1050,7 @@ def run_flicker_experiment(
     max_cutouts_per_star: int = DEFAULT_MAX_CUTOUTS_PER_STAR,
     command: str | None = None,
 ) -> FlickerExperimentResult:
-    """Execute the stationary-star chromatic flicker experiment and write outputs to ``results_dir``.
+    """Execute stationary-star chromatic flicker experiment and write outputs to ``results_dir``.
 
     Raises:
         ValueError: If fewer than ``min_stars`` (default 3) have ``>= min_frames_per_star``
@@ -981,7 +1064,8 @@ def run_flicker_experiment(
     def _default_loader(star: FlickerStar) -> Sequence[Frame]:
         _recover_partial_cache(croot, star.ra, star.dec, fov_arcsec, min_frames_per_star)
         print(
-            f"[flicker] Loading frames for {star.name} (RA={star.ra:.4f}, Dec={star.dec:.4f}, mode={data_mode})...",
+            f"[flicker] Loading frames for {star.name} "
+            f"(RA={star.ra:.4f}, Dec={star.dec:.4f}, mode={data_mode})...",
             flush=True,
         )
 
@@ -992,6 +1076,33 @@ def run_flicker_experiment(
                     f"  [{star.name}] cutout {done}/{total} ({status})",
                     flush=True,
                 )
+
+        if data_mode in ("cache", "auto"):
+            try:
+                return data.get_frames(
+                    star.ra,
+                    star.dec,
+                    fov=fov_arcsec,
+                    mode="cache",
+                    cache_root=croot,
+                )
+            except data.NotCachedError:
+                cover = _find_covering_cached_field(croot, star.ra, star.dec)
+                if cover is not None:
+                    c_ra, c_dec, c_fov = cover
+                    return data.get_frames(
+                        c_ra,
+                        c_dec,
+                        fov=c_fov,
+                        mode="cache",
+                        cache_root=croot,
+                    )
+                if data_mode == "cache":
+                    print(
+                        f"  [{star.name}] skipped: not in local cache or covering field.",
+                        flush=True,
+                    )
+                    return ()
 
         try:
             return data.get_frames(
@@ -1059,7 +1170,11 @@ def run_flicker_experiment(
         out_dir / "flicker_scatter_wavelength_vs_time.png",
     )
 
-    cmd_str = command if command is not None else "python " + " ".join(shlex.quote(a) for a in sys.argv)
+    cmd_str = (
+        command
+        if command is not None
+        else "python " + " ".join(shlex.quote(a) for a in sys.argv)
+    )
     total_frames = sum(s.n_total_frames for s in summaries)
     usable_frames = sum(s.n_usable_frames for s in summaries)
     skipped_frames = sum(s.n_skipped_frames for s in summaries)
@@ -1096,14 +1211,23 @@ def run_flicker_experiment(
     )
 
     json_path = out_dir / "flicker.json"
-    json_path.write_text(json.dumps(_serialize_for_json(asdict(result)), indent=2) + "\n", encoding="utf-8")
+    json_path.write_text(
+        json.dumps(_serialize_for_json(asdict(result)), indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     print(
         f"Flicker experiment complete: {len(qualifying_stars)}/{len(summaries)} qualifying stars, "
         f"{usable_frames} usable frames ({skipped_frames} skipped)."
     )
-    print(f"Largest window below {threshold * 100:.1f}% excess scatter: {recommendation.max_window_below_threshold_um} um")
-    print(f"Recommended processing.group_frames max_width: {recommendation.recommended_max_width_um} um")
+    print(
+        f"Largest window below {threshold * 100:.1f}% excess scatter: "
+        f"{recommendation.max_window_below_threshold_um} um"
+    )
+    print(
+        f"Recommended processing.group_frames max_width: "
+        f"{recommendation.recommended_max_width_um} um"
+    )
     print(f"Justification: {recommendation.justification}")
 
     return result
@@ -1123,7 +1247,9 @@ def _serialize_for_json(obj: Any) -> Any:
 def build_parser() -> argparse.ArgumentParser:
     """Build CLI argument parser for ``experiments/flicker.py``."""
     parser = argparse.ArgumentParser(
-        description="Measure stationary-star brightness variation vs wavelength and time difference."
+        description=(
+            "Measure stationary-star brightness variation vs wavelength and time difference."
+        )
     )
     parser.add_argument(
         "--stars-csv",
@@ -1174,7 +1300,8 @@ def build_parser() -> argparse.ArgumentParser:
         default=DEFAULT_MAX_CUTOUTS_PER_STAR,
         help=(
             "Maximum cutouts fetched per uncached star in auto/live mode to avoid "
-            "downloading thousands of North Ecliptic Pole deep-field frames (default: 30; 0 for all)."
+            "downloading thousands of North Ecliptic Pole deep-field frames "
+            "(default: 30; 0 for all)."
         ),
     )
     return parser

@@ -16,10 +16,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Sequence
 
+import astropy.units as u
 import numpy as np
 from astropy.coordinates import SkyCoord, get_body_barycentric
 from astropy.time import Time
-import astropy.units as u
 from astropy.wcs import WCS
 
 from frame import Frame
@@ -252,7 +252,7 @@ def _pixel_to_sky_with_errors(
     sigma_x: float,
     sigma_y: float,
 ) -> tuple[float, float, float, float]:
-    """Convert pixel coordinates and uncertainties to (ra, dec, sigma_ra*, sigma_dec) via local Jacobian."""
+    """Convert pixel coords and uncertainties to (ra, dec, sigma_ra*, sigma_dec) via Jacobian."""
     ra0, dec0 = wcs.pixel_to_world_values(x, y)
     ra0 = float(ra0)
     dec0 = float(dec0)
