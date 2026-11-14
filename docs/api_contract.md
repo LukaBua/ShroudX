@@ -274,6 +274,39 @@ Details of the implemented response:
 
 Additional errors: 400 for malformed selection parameters, 404 for missing cache or unknown target, 502 for archive failure. Motion-module rejection (too few accepted centroids, singular fit, mixed versions) returns 422 with its explanatory message. Unexpected failures return a safe 500. Missing benchmark CSV disables comparison with a warning; malformed or uncited benchmark records fail loudly.
 
+### GET /api/tracking
+
+Implemented. Uses the same selection parameters as `/api/meta`, plus optional `search_radius` in native pixels (positive, at most 10; default 4). `mode` is validated but does not change the measurements. Epoch selectors are ignored. It tracks the exact cleaned/aligned blink sequence, retaining each `frames[].index`, `mjd`, `epoch`, `date`, `uri`, detector, wavelength and version. `/api/meta` frame entries additionally expose `uri` for cross-resource association.
+
+The response is the `tracking.track_frames` report: `frames`, `n_frames`, `n_detected`, `config`, `synthetic`, `warnings`, plus `target`, `image_shape` and `data_source`. Every row includes:
+
+- `predicted`: expected RA/Dec, optional `sigma_arcsec`, and projected PNG `x`/`y` (pixel centres at half-integers, y down).
+- `status`: `detected` or `rejected`; `reason` describes a rejection.
+- `measured`: null for rejected rows. Accepted measurements contain PNG `x`/`y`, native `fits_x`/`fits_y`, `sigma_x`/`sigma_y`, RA/Dec, `sigma_ra_arcsec`/`sigma_dec_arcsec`, `covariance_arcsec2` and centroid `snr`.
+- `warnings`: per-frame quality notes, including unreliable/saturated centroid pixels.
+
+This initial endpoint uses a **constant resolved sky position**, explicitly identified in its warnings. It does not infer a trajectory or reuse another frame's position; moving sources outside the search gate are rejected. Predictions have unknown uncertainty (`sigma_arcsec: null`) unless supplied by a future trajectory implementation. Positional association does not confirm source identity. The configured narrow-window and single-version tracking safeguards still apply, including when image grouping widened its window.
+
+A valid sequence with zero accepted centroids returns 200 with `n_detected: 0` and rejected rows, not invented measurements. Invalid query parameters return 400; no coverage/missing cache return 404; incompatible measurement inputs return 422; archive failures return 502.
+
+### GET /api/spectrum
+
+Implemented. Uses name or RA/Dec, `fov`, optional `detector`, paired optional `wmin`/`wmax`, and the same `search_radius` as tracking. Also accepts `allow_forced=true|false` (default false; other values return 400). `mode` is validated but does not change photometry, and epoch selectors are ignored.
+
+Unlike the blink sequence, the default spectrum includes **all available detectors and wavelengths**; no automatic narrow window or detector is selected. Explicit detector/wavelength filters are respected. Exposures are cleaned and measured separately in their own WCS, without cross-band coaddition or reprojection. Each exposure is independently associated with the constant resolved position using `tracking.track_frames`, then passed to `spectrum.extract_spectrum`.
+
+The response contains `frames` (one sample or rejection per selected exposure), `n_frames`, `n_points` (non-null aperture flux count), `flux_unit: "Jy"`, `config`, `allow_forced`, `target`, `data_source`, `synthetic` and `warnings`. Spectrum `index` is local to this exposure list, not a blink index. Match resources using `uri`, MJD, detector and wavelength; do not substitute nearest observations.
+
+Each sample carries date, MJD, wavelength, detector, processing version, URI, `position_kind` (`measured`, `forced` or `unavailable`), position details, `tracking_reason`, and:
+
+- `flux_jy`, `flux_sigma_jy`, signed `snr`, `significant_aperture_signal`.
+- `status`: `measured`, `low_snr`, `forced` or `rejected`; `reason` explains rejections.
+- Available quality details: aperture usable fraction/area, background and its statistical uncertainty in MJy/sr, background-pixel count, pixel solid angle and per-sample warnings.
+
+No measured position means a rejected/null-flux sample unless forced photometry was explicitly requested. Forced measurements retain that label even at high SNR. Negative flux is retained; it is not converted into an invented upper limit. Masked, unreliable and invalid pixels do not contribute. Aperture sums are not corrected to total-source flux. Errors exclude position/calibration/WCS systematics and pixel correlations; samples may be non-simultaneous and do not establish a fitted SED. `Frame.wavelength` is retained as evaluated at the requested target pixel, rather than silently claiming centroid-specific spectral re-evaluation.
+
+Zero successful samples is a valid 200 report with rejection reasons. No matching exposures returns 422; other error semantics match tracking. Reproducible tracking/SED results are saved atomically under `results/tracking-<hash>.json` and `results/spectrum-<hash>.json`, including the exact request, rerunnable command, selected input URIs/times/wavelengths/versions, data mode and cache root. A server in the recorded mode with the same code and cache is required for reproduction. Synthetic results are always labelled.
+
 ### GET /api/movers
 
 Same parameters as `/api/meta`, plus `threshold` (3 to 10, sigma, default 5) and `max_pm` (arcseconds per year, default 15). Returns the ranked candidates, the false-match estimate, per-epoch source counts and warnings. The exact candidate fields are defined in Prompt 13.
@@ -291,9 +324,40 @@ Until the real endpoints exist, the frontend can serve static JSON files shaped 
 
 ## Changelog
 
+- Added `/api/tracking` and `/api/spectrum`, explicit forced-photometry semantics, per-exposure quality/rejection information and reproducible measurement artifacts. Metadata frames expose source URI for resource association.
 - Implemented the optional Gaia layer with observed-epoch catalog projection, lossless source ID text, source inspection and isolated error handling.
 - Implemented `/api/motion`, projected centroid overlays, optional panel, benchmark verdict adaptation and reproducible JSON artifacts; documented null chi-squared and marginal error-circle semantics.
 - Added implemented Difference mode, epoch validation and error semantics, chronological sign convention, wavelength warnings and `X-Diff-Limit` behavior.
 - 1.2: Implemented `/api/blink.gif`, with exact size and provenance headers, captioned frames, integer speed validation and GIF timing resolution. Documented downscaling and display-only brightness/contrast controls.
 - 1.1: `/api/resolve` takes only `target`, `ra`, `dec`. Added the 422 `insufficient_data` error. Stated that `stretch` in `/api/meta` applies to blink and stack only, and added the `X-Diff-Limit` header for diff images. The diff wavelength warning threshold is now half of `max_width`.
 - 1.0: first version.
+
+## Original practice frontend protocol
+
+The exact copied `spaceapps` frontend uses its original API schema. Requests to
+`/api/meta`, `/api/image.png`, `/api/motion`, `/api/spectrum` and `/api/catalog`
+select that protocol when they contain the original display parameters (`clean`,
+`smooth`, `show_mask`, `show_vector`, `show_compass`), come from the copied page's
+referrer containing those parameters, or explicitly send
+`X-ShroudX-Frontend: spaceapps`. Requests without these markers keep the current
+ShroudX contract described in this document. `/api/pixel` and `/api/detections` provide the
+original inspector and difference-lobe responses. The compatibility module is
+isolated from the current pipeline and uses the same configured real cache.
+
+Original JSON field names, native pixel coordinates, 512px PNG rendering,
+clean/smooth/mask controls, motion fits, spectral samples and stored catalogue
+references are preserved by `frontend_compat/`. Every compatibility JSON response
+includes `synthetic`; the response header `X-ShroudX-Frontend: spaceapps` identifies
+the selected protocol. Unknown catalogue entries are empty, never invented.
+Successful compatibility JSON results are recorded in `results/` with input
+URIs, versions and a rerunnable curl command. These retain the practice project's
+scientific methods; they do not imply scientific validation against literature.
+
+### Shared React/HTML blink rendering
+
+Default clean Blink requests (clean=true, show_mask=false) use the current core
+metadata and PNG pipeline. React receives an adapted metadata schema; the PNG
+bytes, frame order, wavelength window and alignment are identical to the HTML
+viewer. These PNGs have native image dimensions, not the practice renderer's
+512px output size. React's short preset names map to canonical target names.
+Other practice modes and optional science panels retain their original protocol.

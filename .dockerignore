@@ -32,5 +32,8 @@ dist
 build
 .parcel-cache
 node_modules
+spaceapps/
 .DS_Store
 Thumbs.db
+
+scratch/

@@ -15,6 +15,30 @@ A public web tool built for the **NASA Space Apps 2026** challenge *"Planet X an
 
 ---
 
+## React integration and blink parity
+
+The React interface is in `frontend/`. Build it with `npm ci` then `npm run build`
+from that folder. Start the Python server normally; `/` and `/react` serve React
+when built, and `/legacy` always serves the original HTML dashboard.
+
+The original fonts, styles and panels are preserved. The approved blink changes
+preload decoded PNG snapshots, pause on hidden tabs and clean up blob URLs.
+Default clean blink frames use exactly the same backend product as `/legacy`;
+`frontend_compat/` adapts metadata for React and supports its original other modes.
+Raw/mask views and the original science panels remain on the practice protocol;
+the incoming motion, Gaia, flicker and mover library implementations are retained.
+The restored `/api/tracking` and `/api/spectrum` endpoints remain available to
+normal API clients; their measurement results include provenance under `results/`.
+
+Verify real cached blink parity with `python scripts/verify_blink_parity.py`.
+Verify preserved design files with `python scripts/verify_frontend_copy.py`.
+The design check uses `tests/frontend_baseline.json`, recovered from the original
+import verification report; it does not need the removed practice checkout.
+The latter explicitly permits the documented blink changes and reports that the
+frontend is no longer a byte-for-byte copy. Neither check validates astrometry.
+Backups under `scratch/`, practice sources and generated results are excluded
+from the container build context. No legacy HTML changes are required.
+
 ## Quick start (PowerShell)
 
 ### 1. Install dependencies
@@ -258,3 +282,13 @@ Developed during the NASA Space Apps 2026 hackathon:
 
 - **Data sources**: Based on SPHEREx Level-2 spectral image cutouts retrieved via the **NASA/IPAC Infrared Science Archive (IRSA)** (`spherex.artifact`, `spherex.plane`), target resolution via **CDS SIMBAD**, and reference astrometry from the **European Space Agency (ESA) mission Gaia DR3** (`gaiadr3.gaia_source`).
 - **AI assistance**: AI coding assistants were used as pair-programming tools during the hackathon across modules, tests, and documentation (files carrying `# AI-assisted:` headers note AI pair-programming assistance). All IRSA SPHEREx data-format rules, flag bit tables, Gaia DR3 schema checks, and literature target parameters were verified against project specifications and cited sources.
+
+### Generated report policy
+
+Runtime `frontend-compat-*`, `motion-*`, `tracking-*` and `spectrum-*` JSON files
+are ignored locally. Existing tracked reports remain tracked. The named
+`blink-parity.json`, `frontend-copy-verification.json`, `frontend-compat-api-check.json`
+and named WISE0855 example reports remain available for deliberate review and
+commit. Reports are not deleted. Preserve the checked-in frontend baseline;
+change it only after reviewing an intentional design change, not to silence a
+verification failure.

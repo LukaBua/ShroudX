@@ -1,4 +1,11 @@
 # AI-assisted: written with AI pair-programming assistant.
+FROM node:22-alpine AS frontend-build
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -18,7 +25,10 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /app/requirements.txt
 
-COPY --chown=appuser:appuser frame.py coords.py flags.py data.py gaia.py motion.py processing.py app.py pyproject.toml README.md /app/
+COPY --chown=appuser:appuser frame.py coords.py flags.py data.py gaia.py motion.py movers.py processing.py tracking.py spectrum.py app.py pyproject.toml README.md /app/
+COPY --from=frontend-build --chown=appuser:appuser /frontend/dist/ /app/frontend/dist/
+COPY --chown=appuser:appuser frontend_compat/ /app/frontend_compat/
+COPY --chown=appuser:appuser experiments/ /app/experiments/
 COPY --chown=appuser:appuser static/ /app/static/
 COPY --chown=appuser:appuser data/ /app/data/
 COPY --chown=appuser:appuser scripts/ /app/scripts/

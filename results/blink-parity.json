@@ -1,0 +1,47 @@
+{
+  "status": "PASS",
+  "targets": [
+    {
+      "target": "WISE 0855-0714",
+      "frames": 11,
+      "data_versions": [
+        27
+      ],
+      "status": "PASS"
+    },
+    {
+      "target": "Barnard's Star",
+      "frames": 12,
+      "data_versions": [
+        27
+      ],
+      "status": "PASS"
+    },
+    {
+      "target": "Epsilon Indi B",
+      "frames": 12,
+      "data_versions": [
+        27
+      ],
+      "status": "PASS"
+    },
+    {
+      "target": "RW Aurigae",
+      "frames": 9,
+      "data_versions": [
+        27
+      ],
+      "status": "PASS"
+    },
+    {
+      "target": "R Draconis",
+      "frames": 8,
+      "data_versions": [
+        27
+      ],
+      "status": "PASS"
+    }
+  ],
+  "command": "\"C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe\" scripts/verify_blink_parity.py",
+  "note": "Software image identity check, not scientific validation."
+}

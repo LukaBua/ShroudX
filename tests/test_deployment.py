@@ -401,3 +401,19 @@ def test_smoke_test_script_passes_and_reports_missing_motion(
             assert report_full["checks"][endpoint]["verdict"] == "PASS"
             assert report_full["checks"][endpoint]["latency_ms_mean"] >= 0.0
             assert report_full["checks"][endpoint]["latency_ms_sigma"] >= 0.0
+
+
+def test_react_deployment_contains_all_integrated_modules():
+    """Container and pip configuration retain incoming and local runtime modules."""
+    from ast import literal_eval
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    modules = literal_eval(next(line.split("=", 1)[1].strip() for line in project.splitlines() if line.startswith("py-modules =")))
+    packages = literal_eval(next(line.split("=", 1)[1].strip() for line in project.splitlines() if line.startswith("packages =")))
+    for module in ("movers", "motion", "gaia", "processing", "tracking", "spectrum"):
+        assert module + ".py" in dockerfile
+        assert module in modules
+    assert 'frontend_compat' in packages
+    assert 'matplotlib>=3.8.0' in project
+    assert 'npm run build' in dockerfile and '/frontend/dist/' in dockerfile
+    assert 'frontend_compat/' in dockerfile and 'experiments/' in dockerfile

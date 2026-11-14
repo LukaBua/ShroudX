@@ -18,6 +18,7 @@ dependencies = [
     "fastapi>=0.110.0",
     "uvicorn>=0.28.0",
     "pillow>=10.0.0",
+    "matplotlib>=3.8.0",
 ]
 
 [project.optional-dependencies]
@@ -28,7 +29,8 @@ dev = [
 ]
 
 [tool.setuptools]
-py-modules = ["app", "coords", "data", "flags", "frame", "gaia", "motion", "processing"]
+packages = ["frontend_compat"]
+py-modules = ["app", "coords", "data", "flags", "frame", "gaia", "motion", "movers", "processing", "tracking", "spectrum"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"

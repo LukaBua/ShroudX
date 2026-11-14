@@ -1,0 +1,1578 @@
+{
+  "synthetic": false,
+  "flux_unit": "Jy",
+  "config": {
+    "radius_px": 2.5,
+    "annulus_inner_px": 5.0,
+    "annulus_outer_px": 8.0,
+    "subpixels": 5,
+    "min_aperture_fraction": 0.8,
+    "min_background_pixels": 10,
+    "detection_snr": 5.0
+  },
+  "allow_forced": false,
+  "frames": [
+    {
+      "index": 0,
+      "mjd": 60800.834438,
+      "wavelength_um": 4.859846479025106,
+      "detector": 6,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/6/level2_2025W19_1B_0138_1D6_spx_l2b-v27-2026-197.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 1,
+      "mjd": 60800.834438,
+      "wavelength_um": 2.207864681666244,
+      "detector": 3,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/3/level2_2025W19_1B_0138_1D3_spx_l2b-v27-2026-197.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.714273052400976,
+        "y": 19.85627926578685,
+        "fits_x": 18.214273052400976,
+        "fits_y": 18.64372073421315,
+        "sigma_x": 0.1404207011450215,
+        "sigma_y": 0.15403503278861633,
+        "ra": 133.75816461950757,
+        "dec": -7.240760407671557,
+        "sigma_ra_arcsec": 0.8617477419495925,
+        "sigma_dec_arcsec": 0.944625085130501,
+        "covariance_arcsec2": [
+          [
+            0.7426091707552215,
+            0.025635071375923798
+          ],
+          [
+            0.025635071375923794,
+            0.8923165514578063
+          ]
+        ],
+        "snr": 7.7040336697243665
+      },
+      "flux_jy": 0.00048557429774886377,
+      "flux_sigma_jy": 6.63535392448315e-05,
+      "snr": 7.317986399447212,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.72,
+      "usable_area_pixels": 19.72,
+      "background_mjy_sr": -0.0011435896158218384,
+      "background_sigma_mjy_sr": 0.001811692803242349,
+      "n_background_pixels": 114,
+      "pixel_solid_angle_sr": 8.896099613582752e-10
+    },
+    {
+      "index": 2,
+      "mjd": 60801.450117,
+      "wavelength_um": 4.1447736280634215,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/5/level2_2025W19_1B_0231_4D5_spx_l2b-v27-2026-197.fits",
+      "tracking_reason": null,
+      "status": "low_snr",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.075321155646616,
+        "y": 20.24718635807174,
+        "fits_x": 19.575321155646616,
+        "fits_y": 18.25281364192826,
+        "sigma_x": 0.25223487594813226,
+        "sigma_y": 0.22326805343750072,
+        "ra": 133.76045328950912,
+        "dec": -7.241519456111635,
+        "sigma_ra_arcsec": 1.5358585245695842,
+        "sigma_dec_arcsec": 1.386743866578314,
+        "covariance_arcsec2": [
+          [
+            2.3588614074930603,
+            -0.13631567372957137
+          ],
+          [
+            -0.13631567372957146,
+            1.923058551492573
+          ]
+        ],
+        "snr": 5.050379060552351
+      },
+      "flux_jy": 0.0007352821377064516,
+      "flux_sigma_jy": 0.00015349594800313128,
+      "snr": 4.7902380960014135,
+      "significant_aperture_signal": false,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.72,
+      "usable_area_pixels": 19.72,
+      "background_mjy_sr": -0.0015963241457939148,
+      "background_sigma_mjy_sr": 0.004361366238322898,
+      "n_background_pixels": 120,
+      "pixel_solid_angle_sr": 8.872933183844215e-10
+    },
+    {
+      "index": 3,
+      "mjd": 60801.450117,
+      "wavelength_um": 1.3728294916438224,
+      "detector": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/2/level2_2025W19_1B_0231_4D2_spx_l2b-v27-2026-197.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.267746406295082,
+        "y": 19.396165613612382,
+        "fits_x": 17.767746406295082,
+        "fits_y": 19.103834386387618,
+        "sigma_x": 0.10535832566151788,
+        "sigma_y": 0.10424733112756461,
+        "ra": 133.75795145695872,
+        "dec": -7.241259003163824,
+        "sigma_ra_arcsec": 0.647816278191969,
+        "sigma_dec_arcsec": 0.6386826048071806,
+        "covariance_arcsec2": [
+          [
+            0.4196659302904945,
+            0.0017370760223949415
+          ],
+          [
+            0.0017370760223949463,
+            0.40791546968328524
+          ]
+        ],
+        "snr": 11.328086987571627
+      },
+      "flux_jy": 0.0009980198271178427,
+      "flux_sigma_jy": 8.102419696243433e-05,
+      "snr": 12.317552836476242,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.520000000000003,
+      "usable_area_pixels": 19.520000000000003,
+      "background_mjy_sr": 0.0007463544607162476,
+      "background_sigma_mjy_sr": 0.0021735830125119986,
+      "n_background_pixels": 116,
+      "pixel_solid_angle_sr": 8.857144962678079e-10
+    },
+    {
+      "index": 4,
+      "mjd": 60801.514177,
+      "wavelength_um": 0.9926265761081257,
+      "detector": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/1/level2_2025W19_1B_0241_1D1_spx_l2b-v27-2026-197.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.065940775775463,
+        "y": 19.81644133470693,
+        "fits_x": 17.565940775775463,
+        "fits_y": 18.68355866529307,
+        "sigma_x": 0.07505257623475108,
+        "sigma_y": 0.08470482990926795,
+        "ra": 133.7583408467106,
+        "dec": -7.24108963310353,
+        "sigma_ra_arcsec": 0.4739743698107024,
+        "sigma_dec_arcsec": 0.5084995208750458,
+        "covariance_arcsec2": [
+          [
+            0.22465170323745245,
+            0.02494762661063257
+          ],
+          [
+            0.02494762661063257,
+            0.2585717627301511
+          ]
+        ],
+        "snr": 14.135874843129047
+      },
+      "flux_jy": 0.0010821594000488964,
+      "flux_sigma_jy": 8.272962893885373e-05,
+      "snr": 13.08067513331567,
+      "significant_aperture_signal": true,
+      "warnings": [
+        "Partial aperture: flux has not been corrected for excluded pixels."
+      ],
+      "aperture_fraction": 0.9490835030549898,
+      "aperture_area_pixels": 19.64,
+      "usable_area_pixels": 18.64,
+      "background_mjy_sr": 0.002901703119277954,
+      "background_sigma_mjy_sr": 0.002326231935595629,
+      "n_background_pixels": 115,
+      "pixel_solid_angle_sr": 8.900789517374861e-10
+    },
+    {
+      "index": 5,
+      "mjd": 60801.514177,
+      "wavelength_um": 3.357923898894967,
+      "detector": 4,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/4/level2_2025W19_1B_0241_1D4_spx_l2b-v27-2026-197.fits",
+      "tracking_reason": "ambiguous",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": [
+        "Multiple qualifying peaks: no unique target association."
+      ]
+    },
+    {
+      "index": 6,
+      "mjd": 60979.725662,
+      "wavelength_um": 0.9027175911430406,
+      "detector": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W44_2B/l2b-v27-2026-246/1/level2_2025W44_2B_0305_3D1_spx_l2b-v27-2026-246.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.24696647540214,
+        "y": 18.66544275535251,
+        "fits_x": 19.74696647540214,
+        "fits_y": 19.83455724464749,
+        "sigma_x": 0.09399613120598126,
+        "sigma_y": 0.09801112730474701,
+        "ra": 133.7580916098156,
+        "dec": -7.241025705263376,
+        "sigma_ra_arcsec": 0.5906358898606968,
+        "sigma_dec_arcsec": 0.5941486718165202,
+        "covariance_arcsec2": [
+          [
+            0.34885075439153723,
+            0.022732733468102156
+          ],
+          [
+            0.02273273346810215,
+            0.35301264422133505
+          ]
+        ],
+        "snr": 12.052497197101168
+      },
+      "flux_jy": 0.0011030871106064621,
+      "flux_sigma_jy": 8.909472086916388e-05,
+      "snr": 12.381060290051888,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.68,
+      "usable_area_pixels": 19.68,
+      "background_mjy_sr": -0.0009178593754768372,
+      "background_sigma_mjy_sr": 0.002373445482149872,
+      "n_background_pixels": 114,
+      "pixel_solid_angle_sr": 8.9044483456028e-10
+    },
+    {
+      "index": 7,
+      "mjd": 60979.785423,
+      "wavelength_um": 0.9459988615787358,
+      "detector": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W44_2B/l2b-v27-2026-246/1/level2_2025W44_2B_0321_1D1_spx_l2b-v27-2026-246.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.646123681447346,
+        "y": 18.71070780575967,
+        "fits_x": 20.146123681447346,
+        "fits_y": 19.78929219424033,
+        "sigma_x": 0.09981216039965458,
+        "sigma_y": 0.1014284175935355,
+        "ra": 133.75807563865197,
+        "dec": -7.241068423793699,
+        "sigma_ra_arcsec": 0.6251155477857213,
+        "sigma_dec_arcsec": 0.6153343338180389,
+        "covariance_arcsec2": [
+          [
+            0.39076944808344244,
+            0.019541151075677006
+          ],
+          [
+            0.019541151075677013,
+            0.3786363423752897
+          ]
+        ],
+        "snr": 11.871684541871696
+      },
+      "flux_jy": 0.0010602670188180963,
+      "flux_sigma_jy": 8.99476664857862e-05,
+      "snr": 11.787598947724153,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.72,
+      "usable_area_pixels": 19.72,
+      "background_mjy_sr": 0.0006233751773834229,
+      "background_sigma_mjy_sr": 0.002422329728073697,
+      "n_background_pixels": 117,
+      "pixel_solid_angle_sr": 8.901772834904243e-10
+    },
+    {
+      "index": 8,
+      "mjd": 60979.786915,
+      "wavelength_um": 0.9683806551645258,
+      "detector": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W44_2B/l2b-v27-2026-246/1/level2_2025W44_2B_0321_2D1_spx_l2b-v27-2026-246.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.489176673993143,
+        "y": 19.595934111671347,
+        "fits_x": 19.989176673993143,
+        "fits_y": 18.904065888328653,
+        "sigma_x": 0.09309823074742334,
+        "sigma_y": 0.09242438710834301,
+        "ra": 133.7581032217462,
+        "dec": -7.241161288235551,
+        "sigma_ra_arcsec": 0.5815859173820663,
+        "sigma_dec_arcsec": 0.5613093175340594,
+        "covariance_arcsec2": [
+          [
+            0.3382421792971397,
+            0.012579864976383724
+          ],
+          [
+            0.012579864976383732,
+            0.3150681499505516
+          ]
+        ],
+        "snr": 12.67576208109496
+      },
+      "flux_jy": 0.0011814496696916543,
+      "flux_sigma_jy": 9.176146750091263e-05,
+      "snr": 12.875226408948876,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.6,
+      "usable_area_pixels": 19.6,
+      "background_mjy_sr": -0.00031960010528564453,
+      "background_sigma_mjy_sr": 0.0023579269292417476,
+      "n_background_pixels": 118,
+      "pixel_solid_angle_sr": 8.899937757279662e-10
+    },
+    {
+      "index": 9,
+      "mjd": 60979.786915,
+      "wavelength_um": 3.266155772117383,
+      "detector": 4,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W44_2B/l2b-v27-2026-246/4/level2_2025W44_2B_0321_2D4_spx_l2b-v27-2026-246.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.574396504816796,
+        "y": 19.03212413730587,
+        "fits_x": 20.074396504816796,
+        "fits_y": 19.46787586269413,
+        "sigma_x": 0.22368551527547215,
+        "sigma_y": 0.20992241250833535,
+        "ra": 133.75835388852317,
+        "dec": -7.240638134249409,
+        "sigma_ra_arcsec": 1.392774568728352,
+        "sigma_dec_arcsec": 1.280615069553275,
+        "covariance_arcsec2": [
+          [
+            1.9398209992964466,
+            0.01779962640813055
+          ],
+          [
+            0.017799626408130546,
+            1.6399749563669395
+          ]
+        ],
+        "snr": 5.5137757962440785
+      },
+      "flux_jy": 0.000297839686246432,
+      "flux_sigma_jy": 5.863407271535472e-05,
+      "snr": 5.079634970818523,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.520000000000003,
+      "usable_area_pixels": 19.520000000000003,
+      "background_mjy_sr": -0.0002753734588623047,
+      "background_sigma_mjy_sr": 0.0018368827955669619,
+      "n_background_pixels": 113,
+      "pixel_solid_angle_sr": 8.917924863038468e-10
+    },
+    {
+      "index": 10,
+      "mjd": 60979.788638,
+      "wavelength_um": 3.3541718067724955,
+      "detector": 4,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W44_2B/l2b-v27-2026-246/4/level2_2025W44_2B_0322_1D4_spx_l2b-v27-2026-246.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 22.333921834700902,
+        "y": 18.575508796675837,
+        "fits_x": 21.833921834700902,
+        "fits_y": 19.924491203324163,
+        "sigma_x": 0.20941130889944234,
+        "sigma_y": 0.19368186914403715,
+        "ra": 133.75472758420173,
+        "dec": -7.239694786290755,
+        "sigma_ra_arcsec": 1.3016100714797618,
+        "sigma_dec_arcsec": 1.182343226767968,
+        "covariance_arcsec2": [
+          [
+            1.6941887781775509,
+            0.00325025799892001
+          ],
+          [
+            0.0032502579989199545,
+            1.3979355058840908
+          ]
+        ],
+        "snr": 6.398200929719115
+      },
+      "flux_jy": 0.00032407613493411316,
+      "flux_sigma_jy": 5.708696999026098e-05,
+      "snr": 5.676884497274956,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.639999999999997,
+      "usable_area_pixels": 19.639999999999997,
+      "background_mjy_sr": 9.316951036453247e-05,
+      "background_sigma_mjy_sr": 0.0016529525575384213,
+      "n_background_pixels": 116,
+      "pixel_solid_angle_sr": 8.934488259448558e-10
+    },
+    {
+      "index": 11,
+      "mjd": 60986.787279,
+      "wavelength_um": 1.3484789047080115,
+      "detector": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/2/level2_2025W45_2A_0278_4D2_spx_l2b-v27-2026-247.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.550466261123958,
+        "y": 19.760522389951525,
+        "fits_x": 20.050466261123958,
+        "fits_y": 18.739477610048475,
+        "sigma_x": 0.09791706868207259,
+        "sigma_y": 0.10051619170411819,
+        "ra": 133.7581601538609,
+        "dec": -7.241433609086801,
+        "sigma_ra_arcsec": 0.600222899982417,
+        "sigma_dec_arcsec": 0.6182991647749398,
+        "covariance_arcsec2": [
+          [
+            0.3602675296633025,
+            0.002890965047711883
+          ],
+          [
+            0.0028909650477118706,
+            0.38229385716138825
+          ]
+        ],
+        "snr": 11.855566369278467
+      },
+      "flux_jy": 0.001038986089016764,
+      "flux_sigma_jy": 8.887974760020704e-05,
+      "snr": 11.689795674153599,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.68,
+      "usable_area_pixels": 19.68,
+      "background_mjy_sr": -0.0005361661314964294,
+      "background_sigma_mjy_sr": 0.0024600010043197857,
+      "n_background_pixels": 116,
+      "pixel_solid_angle_sr": 8.850141647313381e-10
+    },
+    {
+      "index": 12,
+      "mjd": 60986.853684,
+      "wavelength_um": 4.153165067839173,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_1D5_spx_l2b-v27-2026-247.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 13,
+      "mjd": 60986.855176,
+      "wavelength_um": 1.4131983173858724,
+      "detector": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/2/level2_2025W45_2A_0292_2D2_spx_l2b-v27-2026-247.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.21384041939384,
+        "y": 19.08901303110634,
+        "fits_x": 19.71384041939384,
+        "fits_y": 19.41098696889366,
+        "sigma_x": 0.10408470983185146,
+        "sigma_y": 0.09698455634297266,
+        "ra": 133.75791885495667,
+        "dec": -7.24129662352717,
+        "sigma_ra_arcsec": 0.6314201347182418,
+        "sigma_dec_arcsec": 0.6025386348226812,
+        "covariance_arcsec2": [
+          [
+            0.3986913865276026,
+            -0.019599338182541868
+          ],
+          [
+            -0.01959933818254188,
+            0.36305280645398036
+          ]
+        ],
+        "snr": 11.255778763076075
+      },
+      "flux_jy": 0.0008969538699876292,
+      "flux_sigma_jy": 8.65863067856754e-05,
+      "snr": 10.359072967597907,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.68,
+      "usable_area_pixels": 19.68,
+      "background_mjy_sr": 0.001983359456062317,
+      "background_sigma_mjy_sr": 0.0025348296688534975,
+      "n_background_pixels": 115,
+      "pixel_solid_angle_sr": 8.839597655042671e-10
+    },
+    {
+      "index": 14,
+      "mjd": 60986.855176,
+      "wavelength_um": 4.1889694624922456,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_2D5_spx_l2b-v27-2026-247.fits",
+      "tracking_reason": null,
+      "status": "low_snr",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 19.636540238226857,
+        "y": 19.505884386193436,
+        "fits_x": 19.136540238226857,
+        "fits_y": 18.994115613806564,
+        "sigma_x": 0.2073498175057848,
+        "sigma_y": 0.22498346425222351,
+        "ra": 133.75907506298523,
+        "dec": -7.242295656079364,
+        "sigma_ra_arcsec": 1.2797028914401254,
+        "sigma_dec_arcsec": 1.376099003543881,
+        "covariance_arcsec2": [
+          [
+            1.6376394903602172,
+            0.07534499284190387
+          ],
+          [
+            0.07534499284190393,
+            1.8936484675544618
+          ]
+        ],
+        "snr": 5.573157726716145
+      },
+      "flux_jy": 0.0008337027447532894,
+      "flux_sigma_jy": 0.00016714586843781992,
+      "snr": 4.98787527651894,
+      "significant_aperture_signal": false,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.759999999999998,
+      "usable_area_pixels": 19.759999999999998,
+      "background_mjy_sr": -0.002001658082008362,
+      "background_sigma_mjy_sr": 0.0046183237374856955,
+      "n_background_pixels": 121,
+      "pixel_solid_angle_sr": 8.875112006398047e-10
+    },
+    {
+      "index": 15,
+      "mjd": 60986.856669,
+      "wavelength_um": 4.224863273486272,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_3D5_spx_l2b-v27-2026-247.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 16,
+      "mjd": 60993.509586,
+      "wavelength_um": 2.1294642974123543,
+      "detector": 3,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W46_2A/l2b-v27-2026-207/3/level2_2025W46_2A_0214_4D3_spx_l2b-v27-2026-207.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.74471993181787,
+        "y": 19.168986750570433,
+        "fits_x": 20.24471993181787,
+        "fits_y": 19.331013249429567,
+        "sigma_x": 0.12642960402316145,
+        "sigma_y": 0.11915312015359855,
+        "ra": 133.7583842584387,
+        "dec": -7.241310875803712,
+        "sigma_ra_arcsec": 0.7619790294474996,
+        "sigma_dec_arcsec": 0.7493094630775796,
+        "covariance_arcsec2": [
+          [
+            0.5806120413177535,
+            -0.041450995715746716
+          ],
+          [
+            -0.041450995715746675,
+            0.5614646714576107
+          ]
+        ],
+        "snr": 9.415964622101944
+      },
+      "flux_jy": 0.0006141540791383739,
+      "flux_sigma_jy": 7.137308546284708e-05,
+      "snr": 8.604841379010704,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.64,
+      "usable_area_pixels": 19.64,
+      "background_mjy_sr": 0.0007727891206741333,
+      "background_sigma_mjy_sr": 0.002195374901765551,
+      "n_background_pixels": 114,
+      "pixel_solid_angle_sr": 8.897474214804859e-10
+    },
+    {
+      "index": 17,
+      "mjd": 60993.57425,
+      "wavelength_um": 2.178695519773612,
+      "detector": 3,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W46_2A/l2b-v27-2026-207/3/level2_2025W46_2A_0226_1D3_spx_l2b-v27-2026-207.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.202396873117618,
+        "y": 19.411093337487895,
+        "fits_x": 19.702396873117618,
+        "fits_y": 19.088906662512105,
+        "sigma_x": 0.11015491530627367,
+        "sigma_y": 0.12511604360630216,
+        "ra": 133.75855043535267,
+        "dec": -7.241224225476861,
+        "sigma_ra_arcsec": 0.6791477085742583,
+        "sigma_dec_arcsec": 0.7674660957441102,
+        "covariance_arcsec2": [
+          [
+            0.46124161006166575,
+            0.026934432449650984
+          ],
+          [
+            0.026934432449651005,
+            0.5890042081167076
+          ]
+        ],
+        "snr": 9.680130191362998
+      },
+      "flux_jy": 0.0006621121825048303,
+      "flux_sigma_jy": 7.474548491722824e-05,
+      "snr": 8.858223118600957,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.48,
+      "usable_area_pixels": 19.48,
+      "background_mjy_sr": 0.004137076437473297,
+      "background_sigma_mjy_sr": 0.0023405362861563723,
+      "n_background_pixels": 120,
+      "pixel_solid_angle_sr": 8.893003682818499e-10
+    },
+    {
+      "index": 18,
+      "mjd": 60993.57425,
+      "wavelength_um": 4.839359381429281,
+      "detector": 6,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W46_2A/l2b-v27-2026-207/6/level2_2025W46_2A_0226_1D6_spx_l2b-v27-2026-207.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 19,
+      "mjd": 60993.575742,
+      "wavelength_um": 2.2291576641394175,
+      "detector": 3,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W46_2A/l2b-v27-2026-207/3/level2_2025W46_2A_0226_2D3_spx_l2b-v27-2026-207.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.243917718398546,
+        "y": 19.712600239992536,
+        "fits_x": 19.743917718398546,
+        "fits_y": 18.787399760007464,
+        "sigma_x": 0.11390167810062914,
+        "sigma_y": 0.11415147538764243,
+        "ra": 133.75788882195425,
+        "dec": -7.241186755323805,
+        "sigma_ra_arcsec": 0.6907140687733099,
+        "sigma_dec_arcsec": 0.7106762683189275,
+        "covariance_arcsec2": [
+          [
+            0.4770859248013807,
+            -0.015265186812456822
+          ],
+          [
+            -0.015265186812456838,
+            0.5050607583517163
+          ]
+        ],
+        "snr": 10.132732359038911
+      },
+      "flux_jy": 0.0006444431105367482,
+      "flux_sigma_jy": 7.319997767274109e-05,
+      "snr": 8.803870315615303,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.72,
+      "usable_area_pixels": 19.72,
+      "background_mjy_sr": -0.0003526061773300171,
+      "background_sigma_mjy_sr": 0.002181107226980526,
+      "n_background_pixels": 116,
+      "pixel_solid_angle_sr": 8.902974415677218e-10
+    },
+    {
+      "index": 20,
+      "mjd": 60993.575742,
+      "wavelength_um": 4.874833044292001,
+      "detector": 6,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W46_2A/l2b_retry-v27-2026-207/6/level2_2025W46_2A_0226_2D6_spx_l2b_retry-v27-2026-207.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 21,
+      "mjd": 61021.823521,
+      "wavelength_um": 1.348317519459881,
+      "detector": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b_retry-v27-2026-210/2/level2_2025W50_2A_0374_1D2_spx_l2b_retry-v27-2026-210.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.590124434552305,
+        "y": 19.714657618846356,
+        "fits_x": 20.090124434552305,
+        "fits_y": 18.785342381153644,
+        "sigma_x": 0.08445495718539621,
+        "sigma_y": 0.08529657184061445,
+        "ra": 133.7580409228528,
+        "dec": -7.241486974623025,
+        "sigma_ra_arcsec": 0.5168131663141871,
+        "sigma_dec_arcsec": 0.5255546465046045,
+        "covariance_arcsec2": [
+          [
+            0.2670958488756956,
+            -0.0005854491024145633
+          ],
+          [
+            -0.0005854491024145494,
+            0.27620768646257976
+          ]
+        ],
+        "snr": 13.538932573383319
+      },
+      "flux_jy": 0.0010300803671730774,
+      "flux_sigma_jy": 8.027062121421717e-05,
+      "snr": 12.832594934379731,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.64,
+      "usable_area_pixels": 19.64,
+      "background_mjy_sr": 0.004009701311588287,
+      "background_sigma_mjy_sr": 0.0022853145590153953,
+      "n_background_pixels": 111,
+      "pixel_solid_angle_sr": 8.859429342853407e-10
+    },
+    {
+      "index": 22,
+      "mjd": 61021.8922,
+      "wavelength_um": 4.153135419421957,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0391_1D5_spx_l2b-v27-2026-210.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 23,
+      "mjd": 61022.231084,
+      "wavelength_um": 4.188809205953361,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0479_1D5_spx_l2b-v27-2026-210.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 24,
+      "mjd": 61022.231084,
+      "wavelength_um": 1.4130436412788319,
+      "detector": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/2/level2_2025W50_2A_0479_1D2_spx_l2b-v27-2026-210.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 20.880826857879583,
+        "y": 18.956094374753718,
+        "fits_x": 20.380826857879583,
+        "fits_y": 19.543905625246282,
+        "sigma_x": 0.07144607465426506,
+        "sigma_y": 0.08827708435265878,
+        "ra": 133.75832562422914,
+        "dec": -7.241279853217924,
+        "sigma_ra_arcsec": 0.4480968153814756,
+        "sigma_dec_arcsec": 0.533754058422482,
+        "covariance_arcsec2": [
+          [
+            0.20079075595502024,
+            0.02913116398622346
+          ],
+          [
+            0.029131163986223455,
+            0.28489339488247034
+          ]
+        ],
+        "snr": 13.764272986411692
+      },
+      "flux_jy": 0.0009563263620471312,
+      "flux_sigma_jy": 7.578715270846813e-05,
+      "snr": 12.618581486044869,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.76,
+      "usable_area_pixels": 19.76,
+      "background_mjy_sr": -0.0016237497329711914,
+      "background_sigma_mjy_sr": 0.0019591976645376807,
+      "n_background_pixels": 115,
+      "pixel_solid_angle_sr": 8.847456327447965e-10
+    },
+    {
+      "index": 25,
+      "mjd": 61022.368105,
+      "wavelength_um": 4.224682820966444,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0512_1D5_spx_l2b-v27-2026-210.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 26,
+      "mjd": 61156.085511,
+      "wavelength_um": 2.1535673556814734,
+      "detector": 3,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W17_2A/l2b-v27-2026-243/3/level2_2026W17_2A_0591_1D3_spx_l2b-v27-2026-243.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.49108418333011,
+        "y": 19.55573216523806,
+        "fits_x": 17.99108418333011,
+        "fits_y": 18.94426783476194,
+        "sigma_x": 0.12315894653807218,
+        "sigma_y": 0.11818607056713706,
+        "ra": 133.75813487169984,
+        "dec": -7.241567098707735,
+        "sigma_ra_arcsec": 0.7465428097261957,
+        "sigma_dec_arcsec": 0.7399063880730824,
+        "covariance_arcsec2": [
+          [
+            0.5573261667538828,
+            -0.03695508383350769
+          ],
+          [
+            -0.0369550838335077,
+            0.5474614631113548
+          ]
+        ],
+        "snr": 9.615171253926723
+      },
+      "flux_jy": 0.0006101092326621162,
+      "flux_sigma_jy": 6.86564514669463e-05,
+      "snr": 8.886407899421439,
+      "significant_aperture_signal": true,
+      "warnings": [
+        "Partial aperture: flux has not been corrected for excluded pixels."
+      ],
+      "aperture_fraction": 0.9634888438133875,
+      "aperture_area_pixels": 19.72,
+      "usable_area_pixels": 19.0,
+      "background_mjy_sr": -0.0023117437958717346,
+      "background_sigma_mjy_sr": 0.0022109166719972663,
+      "n_background_pixels": 113,
+      "pixel_solid_angle_sr": 8.895315949362621e-10
+    },
+    {
+      "index": 27,
+      "mjd": 61156.085511,
+      "wavelength_um": 4.8215679861425045,
+      "detector": 6,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W17_2A/l2b-v27-2026-243/6/level2_2026W17_2A_0591_1D6_spx_l2b-v27-2026-243.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 28,
+      "mjd": 61156.493181,
+      "wavelength_um": 4.895454692082328,
+      "detector": 6,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W17_2A/l2b-v27-2026-243/6/level2_2026W17_2A_0692_1D6_spx_l2b-v27-2026-243.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 29,
+      "mjd": 61160.770817,
+      "wavelength_um": 2.156887000445353,
+      "detector": 3,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/3/level2_2026W18_2A_0065_1D3_spx_l2b-v27-2026-244.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.806145714831953,
+        "y": 19.731029810769943,
+        "fits_x": 18.306145714831953,
+        "fits_y": 18.768970189230057,
+        "sigma_x": 0.13287613061669387,
+        "sigma_y": 0.13079626366537922,
+        "ra": 133.7579563511797,
+        "dec": -7.2411133338035585,
+        "sigma_ra_arcsec": 0.8078466266692121,
+        "sigma_dec_arcsec": 0.8103286646407933,
+        "covariance_arcsec2": [
+          [
+            0.6526161722208255,
+            -0.0201155385709096
+          ],
+          [
+            -0.0201155385709096,
+            0.6566325447385313
+          ]
+        ],
+        "snr": 8.888226935260278
+      },
+      "flux_jy": 0.0005876750061662659,
+      "flux_sigma_jy": 6.69583894868372e-05,
+      "snr": 8.776719551801529,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.56,
+      "usable_area_pixels": 19.56,
+      "background_mjy_sr": 0.000997208058834076,
+      "background_sigma_mjy_sr": 0.0019557773101761635,
+      "n_background_pixels": 116,
+      "pixel_solid_angle_sr": 8.892003421126811e-10
+    },
+    {
+      "index": 30,
+      "mjd": 61162.673655,
+      "wavelength_um": 1.4442403532225911,
+      "detector": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/2/level2_2026W18_2A_0519_1D2_spx_l2b-v27-2026-244.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.417879270260343,
+        "y": 19.916029548161287,
+        "fits_x": 17.917879270260343,
+        "fits_y": 18.583970451838713,
+        "sigma_x": 0.11526528465483771,
+        "sigma_y": 0.11238055063052192,
+        "ra": 133.75818393770774,
+        "dec": -7.2410706766476345,
+        "sigma_ra_arcsec": 0.7052077600557904,
+        "sigma_dec_arcsec": 0.6903053074682154,
+        "covariance_arcsec2": [
+          [
+            0.49731798484290524,
+            -0.004928994329561462
+          ],
+          [
+            -0.0049289943295614605,
+            0.47652141751878735
+          ]
+        ],
+        "snr": 10.213466173946067
+      },
+      "flux_jy": 0.0008239379057717767,
+      "flux_sigma_jy": 8.136468336222689e-05,
+      "snr": 10.126480823426707,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.68,
+      "usable_area_pixels": 19.68,
+      "background_mjy_sr": -0.0009440705180168152,
+      "background_sigma_mjy_sr": 0.0021346060459606978,
+      "n_background_pixels": 113,
+      "pixel_solid_angle_sr": 8.857939362783465e-10
+    },
+    {
+      "index": 31,
+      "mjd": 61162.673655,
+      "wavelength_um": 4.222119647081147,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0519_1D5_spx_l2b-v27-2026-244.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 32,
+      "mjd": 61163.215717,
+      "wavelength_um": 4.180312170754152,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_1D5_spx_l2b-v27-2026-244.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 33,
+      "mjd": 61163.217209,
+      "wavelength_um": 4.216367784889965,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_2D5_spx_l2b-v27-2026-244.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 34,
+      "mjd": 61163.217209,
+      "wavelength_um": 1.4389089353191573,
+      "detector": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/2/level2_2026W18_2A_0663_2D2_spx_l2b-v27-2026-244.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.545352923057877,
+        "y": 20.175622713760333,
+        "fits_x": 18.045352923057877,
+        "fits_y": 18.324377286239667,
+        "sigma_x": 0.08867275840808606,
+        "sigma_y": 0.08996654553674126,
+        "ra": 133.75843118883355,
+        "dec": -7.2412461992414014,
+        "sigma_ra_arcsec": 0.5461662769940445,
+        "sigma_dec_arcsec": 0.5493899745408908,
+        "covariance_arcsec2": [
+          [
+            0.2982976021255354,
+            0.005766948341161659
+          ],
+          [
+            0.005766948341161663,
+            0.3018293441260406
+          ]
+        ],
+        "snr": 13.54073593894271
+      },
+      "flux_jy": 0.001028833431688072,
+      "flux_sigma_jy": 8.125221884684581e-05,
+      "snr": 12.662219521996612,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.560000000000002,
+      "usable_area_pixels": 19.560000000000002,
+      "background_mjy_sr": -0.0016863420605659485,
+      "background_sigma_mjy_sr": 0.0024435989355650277,
+      "n_background_pixels": 116,
+      "pixel_solid_angle_sr": 8.847830061715022e-10
+    },
+    {
+      "index": 35,
+      "mjd": 61164.570098,
+      "wavelength_um": 3.2686197999853643,
+      "detector": 4,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W19_1A/l2b-v27-2026-245/4/level2_2026W19_1A_0201_1D4_spx_l2b-v27-2026-245.fits",
+      "tracking_reason": null,
+      "status": "low_snr",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 17.55314080715224,
+        "y": 19.394848952262834,
+        "fits_x": 17.05314080715224,
+        "fits_y": 19.105151047737166,
+        "sigma_x": 0.2347127718626582,
+        "sigma_y": 0.20355835427475907,
+        "ra": 133.7565974776084,
+        "dec": -7.240595978880529,
+        "sigma_ra_arcsec": 1.4386064810563175,
+        "sigma_dec_arcsec": 1.2581375513387814,
+        "covariance_arcsec2": [
+          [
+            2.0695886073372405,
+            -0.11196736707100491
+          ],
+          [
+            -0.1119673670710049,
+            1.5829100980887447
+          ]
+        ],
+        "snr": 5.9824979073156435
+      },
+      "flux_jy": 0.0002579241335604134,
+      "flux_sigma_jy": 5.434179497849703e-05,
+      "snr": 4.746330769207636,
+      "significant_aperture_signal": false,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.439999999999998,
+      "usable_area_pixels": 19.439999999999998,
+      "background_mjy_sr": -0.0014546290040016174,
+      "background_sigma_mjy_sr": 0.0016947268870265613,
+      "n_background_pixels": 118,
+      "pixel_solid_angle_sr": 8.907571812208951e-10
+    },
+    {
+      "index": 36,
+      "mjd": 61164.570098,
+      "wavelength_um": 0.9694841242522945,
+      "detector": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W19_1A/l2b-v27-2026-245/1/level2_2026W19_1A_0201_1D1_spx_l2b-v27-2026-245.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.30992206547231,
+        "y": 20.095452764040388,
+        "fits_x": 17.80992206547231,
+        "fits_y": 18.404547235959612,
+        "sigma_x": 0.07883223339342633,
+        "sigma_y": 0.07337991607707171,
+        "ra": 133.75824885117694,
+        "dec": -7.2412155897697765,
+        "sigma_ra_arcsec": 0.4861949443930334,
+        "sigma_dec_arcsec": 0.4490914836467683,
+        "covariance_arcsec2": [
+          [
+            0.23638552395334483,
+            -0.003728963716840483
+          ],
+          [
+            -0.003728963716840481,
+            0.2016831606840556
+          ]
+        ],
+        "snr": 14.833480631423289
+      },
+      "flux_jy": 0.001169387459517177,
+      "flux_sigma_jy": 8.395415353064465e-05,
+      "snr": 13.928881542356702,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.68,
+      "usable_area_pixels": 19.68,
+      "background_mjy_sr": 0.0033175498247146606,
+      "background_sigma_mjy_sr": 0.0022450327915184125,
+      "n_background_pixels": 114,
+      "pixel_solid_angle_sr": 8.898095129882617e-10
+    },
+    {
+      "index": 37,
+      "mjd": 61164.640482,
+      "wavelength_um": 0.8966227861855576,
+      "detector": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W19_1A/l2b-v27-2026-245/1/level2_2026W19_1A_0227_2D1_spx_l2b-v27-2026-245.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.686987507218063,
+        "y": 19.322919683478293,
+        "fits_x": 18.186987507218063,
+        "fits_y": 19.177080316521707,
+        "sigma_x": 0.08143081312726032,
+        "sigma_y": 0.0798806038275644,
+        "ra": 133.75791643069053,
+        "dec": -7.2411079744022295,
+        "sigma_ra_arcsec": 0.5079085166502565,
+        "sigma_dec_arcsec": 0.4857027278724341,
+        "covariance_arcsec2": [
+          [
+            0.25797106128586383,
+            0.005187961511538329
+          ],
+          [
+            0.005187961511538326,
+            0.2359071398627238
+          ]
+        ],
+        "snr": 14.405648914180388
+      },
+      "flux_jy": 0.0011695868228063342,
+      "flux_sigma_jy": 8.250372240540776e-05,
+      "snr": 14.176170343674977,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.68,
+      "usable_area_pixels": 19.68,
+      "background_mjy_sr": 0.0009130686521530151,
+      "background_sigma_mjy_sr": 0.0021193678457896944,
+      "n_background_pixels": 114,
+      "pixel_solid_angle_sr": 8.892991723996106e-10
+    },
+    {
+      "index": 38,
+      "mjd": 61165.588651,
+      "wavelength_um": 0.9398685911342349,
+      "detector": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W19_1A/l2b-v27-2026-245/1/level2_2026W19_1A_0594_1D1_spx_l2b-v27-2026-245.fits",
+      "tracking_reason": "ambiguous",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": [
+        "Multiple qualifying peaks: no unique target association."
+      ]
+    },
+    {
+      "index": 39,
+      "mjd": 61168.984738,
+      "wavelength_um": 2.1569498176190565,
+      "detector": 3,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W19_2A/l2b-v27-2026-245/3/level2_2026W19_2A_0568_1D3_spx_l2b-v27-2026-245.fits",
+      "tracking_reason": null,
+      "status": "measured",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 18.897286278304747,
+        "y": 19.922229301056532,
+        "fits_x": 18.397286278304747,
+        "fits_y": 18.577770698943468,
+        "sigma_x": 0.12126484788412736,
+        "sigma_y": 0.1115993584886028,
+        "ra": 133.75843731516605,
+        "dec": -7.241050030989933,
+        "sigma_ra_arcsec": 0.7334562689449432,
+        "sigma_dec_arcsec": 0.6963066298124808,
+        "covariance_arcsec2": [
+          [
+            0.5379580984546368,
+            -0.03533111691846432
+          ],
+          [
+            -0.03533111691846435,
+            0.48484292272081525
+          ]
+        ],
+        "snr": 9.959524574430246
+      },
+      "flux_jy": 0.0006921450118070668,
+      "flux_sigma_jy": 7.020561854204263e-05,
+      "snr": 9.858826489685805,
+      "significant_aperture_signal": true,
+      "warnings": [],
+      "aperture_fraction": 1.0,
+      "aperture_area_pixels": 19.72,
+      "usable_area_pixels": 19.72,
+      "background_mjy_sr": -0.0008057057857513428,
+      "background_sigma_mjy_sr": 0.0020891348832950247,
+      "n_background_pixels": 116,
+      "pixel_solid_angle_sr": 8.892962673800452e-10
+    },
+    {
+      "index": 40,
+      "mjd": 61168.984738,
+      "wavelength_um": 4.82495793671859,
+      "detector": 6,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W19_2A/l2b-v27-2026-245/6/level2_2026W19_2A_0568_1D6_spx_l2b-v27-2026-245.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 41,
+      "mjd": 61169.194223,
+      "wavelength_um": 4.859713851078163,
+      "detector": 6,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W19_2A/l2b-v27-2026-245/6/level2_2026W19_2A_0651_1D6_spx_l2b-v27-2026-245.fits",
+      "tracking_reason": "no_qualified_source",
+      "status": "rejected",
+      "reason": "no_position",
+      "position_kind": "unavailable",
+      "position": null,
+      "flux_jy": null,
+      "flux_sigma_jy": null,
+      "snr": null,
+      "significant_aperture_signal": false,
+      "warnings": []
+    },
+    {
+      "index": 42,
+      "mjd": 61171.567192,
+      "wavelength_um": 4.222164081796975,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W20_1A/l2b-v27-2026-246/5/level2_2026W20_1A_0214_1D5_spx_l2b-v27-2026-246.fits",
+      "tracking_reason": null,
+      "status": "low_snr",
+      "reason": null,
+      "position_kind": "measured",
+      "position": {
+        "x": 17.73600192292684,
+        "y": 21.489260978310245,
+        "fits_x": 17.23600192292684,
+        "fits_y": 17.010739021689755,
+        "sigma_x": 0.22716744296528096,
+        "sigma_y": 0.25592368167305624,
+        "ra": 133.75822612455667,
+        "dec": -7.2389212848496065,
+        "sigma_ra_arcsec": 1.4141042886764772,
+        "sigma_dec_arcsec": 1.5527322802191121,
+        "covariance_arcsec2": [
+          [
+            1.9996909392532054,
+            0.16981298642323528
+          ],
+          [
+            0.16981298642323528,
+            2.4109775340344437
+          ]
+        ],
+        "snr": 5.237100503379608
+      },
+      "flux_jy": 0.000708818234120504,
+      "flux_sigma_jy": 0.0001594708762576009,
+      "snr": 4.444813064020017,
+      "significant_aperture_signal": false,
+      "warnings": [
+        "Partial aperture: flux has not been corrected for excluded pixels."
+      ],
+      "aperture_fraction": 0.9979716024340771,
+      "aperture_area_pixels": 19.72,
+      "usable_area_pixels": 19.68,
+      "background_mjy_sr": -0.002324700355529785,
+      "background_sigma_mjy_sr": 0.00413800614112753,
+      "n_background_pixels": 119,
+      "pixel_solid_angle_sr": 8.889758379668651e-10
+    }
+  ],
+  "n_frames": 43,
+  "n_points": 26,
+  "warnings": [
+    "Samples are separate exposures and may be non-simultaneous; variability can mimic spectral structure.",
+    "Tracking is positional association, not proof of target identity; aperture signal can include blends.",
+    "Flux is an uncorrected aperture sum, not total-source photometry or a fitted SED.",
+    "Statistical errors exclude position, calibration, WCS systematics and pixel correlations.",
+    "Wavelengths are Frame.wavelength at the requested target pixel, not a re-evaluated moving centroid.",
+    "Pixel solid angle uses the small-cutout projection-plane approximation.",
+    "High proper-motion target (8.15 arcsec/yr): position propagated from epoch 2000.0 to SPHEREx epoch 2026.0 (source: 2021ApJS..253....7K).",
+    "CLI tracking uses a constant-position prediction, not an inferred moving trajectory."
+  ],
+  "selection": {
+    "ra": 133.75976436144327,
+    "dec": -7.242186,
+    "fov_arcsec": 240,
+    "detector": null,
+    "mode": "cache",
+    "cache_dir": "C:\\Users\\Home\\Desktop\\ShroudX\\cache"
+  },
+  "command": "C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe C:\\Users\\Home\\Desktop\\ShroudX\\spectrum.py --target \"WISE 0855-0714\" --mode cache --output results/spectrum-wise0855.json",
+  "data_versions": [
+    "27"
+  ]
+}

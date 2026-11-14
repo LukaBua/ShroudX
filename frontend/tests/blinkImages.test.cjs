@@ -1,0 +1,25 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs'),ts=require('typescript'),Module=require('node:module');
+const file=require('node:path').resolve(__dirname,'../src/blinkImages.ts');
+const loaded=new Module(file,module);
+loaded._compile(ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,file);
+const {preloadImages}=loaded.exports;
+test('playback snapshots are decoded once in order and revoked on failure',async(t)=>{
+  const calls=[],revoked=[];
+  t.mock.method(URL,'createObjectURL',()=> 'blob:'+calls.length);
+  t.mock.method(URL,'revokeObjectURL',url=>revoked.push(url));
+  const oldImage=global.Image;
+  global.Image=class {async decode(){calls.push('decode');}};
+  t.after(()=>{global.Image=oldImage;});
+  t.mock.method(global,'fetch',async path=>{calls.push(path);return {ok:true,headers:new Headers({'content-type':'image/png'}),blob:async()=>new Blob(['png'])};});
+  const progress=[];
+  const urls=await preloadImages(['/frame0','/frame1'],new AbortController().signal,n=>progress.push(n));
+  assert.deepEqual(calls,['/frame0','decode','/frame1','decode']);
+  assert.deepEqual(progress,[1,2]);assert.ok(urls.every(u=>u.startsWith('blob:')));
+  global.Image=class {async decode(){throw Error('decode failed');}};
+  await assert.rejects(preloadImages(['/bad'],new AbortController().signal,()=>{}),/decode failed/);
+  assert.equal(revoked.length,1);
+  const controller=new AbortController();controller.abort();
+  await assert.rejects(preloadImages(['/never'],controller.signal,()=>{}),{name:'AbortError'});
+});

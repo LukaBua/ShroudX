@@ -41,6 +41,8 @@ import data
 import gaia
 import motion
 import processing
+import spectrum
+import tracking
 from frame import Frame
 from scripts.validate_motion import (
     evaluate_criterion,
@@ -377,19 +379,22 @@ def resolve(position: Position) -> dict[str, Any]:
     )
 
 
-def build_products(
+def fetch_selection_frames(
     selection: Selection,
     data_mode: str,
     cache_root: Path,
     request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SEC,
     irsa_semaphore: threading.BoundedSemaphore | None = None,
     irsa_queue_timeout: float = DEFAULT_IRSA_QUEUE_TIMEOUT_SEC,
-) -> Products:
+    *, pad_for_alignment: bool = False,
+) -> tuple[dict[str, Any], float, tuple[Frame, ...]]:
+    """Retrieve frames with the shared timeout, concurrency and provenance guards."""
     resolved = resolve(selection.position)
     fov = selection.fov if selection.fov is not None else (resolved["suggested_fov_arcsec"] or 120)
     needs_irsa = _will_query_irsa(data_mode, cache_root, resolved["ra"], resolved["dec"], fov)
+
     fetch_fov: float = fov
-    if data_mode != "synthetic":
+    if pad_for_alignment and data_mode != "synthetic":
         try:
             hit = data._find_cached_bucket(cache_root, resolved["ra"], resolved["dec"], fov)
         except Exception:
@@ -433,6 +438,22 @@ def build_products(
         )
         if flagged and not is_synthetic:
             raise RuntimeError("Synthetic frames returned outside synthetic mode")
+    return resolved, fov, frames
+
+
+
+def build_products(
+    selection: Selection,
+    data_mode: str,
+    cache_root: Path,
+    request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SEC,
+    irsa_semaphore: threading.BoundedSemaphore | None = None,
+    irsa_queue_timeout: float = DEFAULT_IRSA_QUEUE_TIMEOUT_SEC,
+) -> Products:
+    resolved, fov, frames = fetch_selection_frames(
+        selection, data_mode, cache_root, request_timeout, irsa_semaphore, irsa_queue_timeout,
+        pad_for_alignment=True)
+    is_synthetic = data_mode == "synthetic"
     grouped = processing.group_frames(
         frames,
         detector=selection.detector,
@@ -507,6 +528,7 @@ def build_products(
                 wavelength_um=float(f.wavelength),
                 epoch=epochs.epoch_indices[i],
                 version=int(f.version) if f.version is not None else None,
+                uri=f.uri,
             )
             for i, f in enumerate(aligned)
         ],
@@ -738,6 +760,33 @@ def create_app(
     application.state.irsa_concurrency = max_irsa
     application.state.irsa_semaphore = irsa_semaphore
 
+    def measurement_config(request: Request) -> tracking.TrackingConfig:
+        radius = number(request, "search_radius")
+        radius = 4.0 if radius is None else radius
+        if not 0 < radius <= 10:
+            raise bad_input("search_radius must be positive and at most 10 native pixels.", "search_radius")
+        return tracking.TrackingConfig(search_radius_px=radius)
+
+
+    def record_measurement(body: dict[str, Any], selection: Selection, route: str,
+                           frames: tuple[Frame, ...], query: dict[str, Any]) -> None:
+        """Save exact API results with effective selection and reproducible commands."""
+        parameters = ({"target": selection.position.target} if selection.position.target else
+                      {"ra": selection.position.ra, "dec": selection.position.dec})
+        parameters.update(query)
+        path = route + "?" + urlencode(parameters)
+        provenance = dict(request=path, data_mode=data_mode, cache_root=str(root),
+            inputs=[dict(uri=f.uri, mjd=float(f.mjd), detector=int(f.detector),
+                         wavelength_um=float(f.wavelength), version=f.version) for f in frames])
+        key = hashlib.sha256(json.dumps(provenance, sort_keys=True).encode()).hexdigest()[:20]
+        filename = f"{route.rsplit('/', 1)[-1]}-{key}.json"
+        command = f'curl.exe --fail "http://127.0.0.1:8000{path}" --output "results/{filename}"'
+        body["provenance"] = provenance
+        body["command"] = command
+        body["data_versions"] = sorted({str(f.version) for f in frames})
+        tracking.write_result(body, motion_results / filename, command)
+
+
     def json_response(body: dict, status: int = 200) -> JSONResponse:
         if data_mode == "synthetic":
             body = {**body, "synthetic": True}
@@ -832,6 +881,80 @@ def create_app(
         if hit and body["data_source"] == "archive":
             body["data_source"] = "cache"
         return json_response(body)
+
+    @application.get("/api/tracking")
+    def tracking_endpoint(request: Request):
+        selection, _ = parse_selection(request)
+        config = measurement_config(request)
+        product, hit = products(selection)
+        target = product.metadata["target"]
+        try:
+            body = tracking.track_frames(product.aligned,
+                tracking.Prediction(target["ra"], target["dec"]), config)
+        except ValueError as exc:
+            raise APIError(422, "insufficient_data", str(exc)) from exc
+        for row, metadata in zip(body["frames"], product.metadata["frames"], strict=True):
+            row.update(epoch=metadata["epoch"], date=metadata["date"])
+        body.update(target=target, image_shape=product.metadata["image_shape"],
+                    data_source="cache" if hit and product.metadata["data_source"] == "archive"
+                    else product.metadata["data_source"])
+        body["warnings"] = list(dict.fromkeys(product.metadata["warnings"] + body["warnings"]))
+        record_measurement(body, selection, "/api/tracking", product.aligned, dict(
+            fov=product.metadata["fov_arcsec"], detector=product.metadata["detector"],
+            wmin=product.metadata["wavelength_window_um"][0],
+            wmax=product.metadata["wavelength_window_um"][1], search_radius=config.search_radius_px))
+        return json_response(body)
+
+
+    @application.get("/api/spectrum")
+    def spectrum_endpoint(request: Request):
+        selection, _ = parse_selection(request)
+        config = measurement_config(request)
+        forced = query_value(request, "allow_forced") or "false"
+        if forced not in ("true", "false"):
+            raise bad_input("allow_forced must be true or false.", "allow_forced")
+        resolved, fov, raw = fetch_selection_frames(selection, data_mode, root,
+            timeout_sec, irsa_semaphore, queue_timeout_sec)
+        selected = tuple(f for f in raw
+            if (selection.detector is None or f.detector == selection.detector)
+            and (selection.wmin is None or selection.wmin <= f.wavelength <= selection.wmax))
+        if not selected:
+            raise APIError(422, "insufficient_data", "No exposures match the requested spectrum filters.")
+        # Each exposure keeps its own WCS/pixel variance. No cross-band coadd or
+        # reprojection is needed for aperture photometry at a sky position.
+        cleaned = tuple(processing.clean_frame(f) for f in selected)
+        rows = []
+        track_warnings = []
+        try:
+            for i, frame in enumerate(cleaned):
+                report = tracking.track_frames([frame],
+                    tracking.Prediction(resolved["ra"], resolved["dec"]), config)
+                row = report["frames"][0]
+                row["index"] = i
+                rows.append(row)
+                track_warnings.extend(report["warnings"])
+            body = spectrum.extract_spectrum(cleaned, rows, allow_forced=forced == "true")
+        except ValueError as exc:
+            raise APIError(422, "insufficient_data", str(exc)) from exc
+        body["target"] = dict(name=selection.position.target,
+            **{key: resolved[key] for key in ("ra", "dec", "source", "pm_known")})
+        body["data_source"] = ("synthetic" if data_mode == "synthetic" else
+            "archive" if any((f.meta or {}).get("data_source") == "archive" for f in raw) else "cache")
+        partial = max(int((f.meta or {}).get("failed_downloads", 0)) for f in raw)
+        warnings = resolved["warnings"] + track_warnings + body["warnings"]
+        if partial:
+            warnings.append(f"{partial} cutout downloads failed; the spectrum may be incomplete.")
+        body["warnings"] = list(dict.fromkeys(warnings))
+        for point in body["frames"]:
+            point["date"] = str(Time(point["mjd"], format="mjd", scale="utc").iso[:10])
+        query = dict(fov=fov, allow_forced=forced, search_radius=config.search_radius_px)
+        for key in ("detector", "wmin", "wmax"):
+            value = getattr(selection, key)
+            if value is not None:
+                query[key] = value
+        record_measurement(body, selection, "/api/spectrum", cleaned, query)
+        return json_response(body)
+
 
     @application.get("/api/motion")
     def motion_endpoint(request: Request):
@@ -933,9 +1056,23 @@ def create_app(
 
     @application.get("/", include_in_schema=False)
     def index():
+        built = ROOT / "frontend" / "dist" / "index.html"
+        if built.is_file():
+            return FileResponse(built, media_type="text/html")
         return FileResponse(ROOT / "static" / "index.html", media_type="text/html")
 
+    @application.get("/legacy", include_in_schema=False)
+    def legacy_index():
+        return FileResponse(ROOT / "static" / "index.html", media_type="text/html")
+
+    @application.get("/react", include_in_schema=False)
+    def react_index():
+        return FileResponse(ROOT / "frontend" / "dist" / "index.html", media_type="text/html")
+
+    application.mount("/assets", StaticFiles(directory=ROOT / "frontend" / "dist" / "assets", check_dir=False), name="react_assets")
     application.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
+    from frontend_compat import FrontendCompatibility
+    application.add_middleware(FrontendCompatibility, cache_root=root, mode=data_mode)
     return application
 
 

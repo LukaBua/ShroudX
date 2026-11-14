@@ -1,0 +1,252 @@
+{
+  "status": "PASS",
+  "targets": [
+    {
+      "target": "WISE0855",
+      "status": "PASS",
+      "frames": 11,
+      "epochs": 4,
+      "data_versions": [
+        "27"
+      ],
+      "images": {
+        "blink": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 74751
+        },
+        "stack": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 41376
+        },
+        "diff": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 81503
+        }
+      },
+      "resources": {
+        "pixel": {
+          "status": 200
+        },
+        "motion": {
+          "status": 200
+        },
+        "spectrum": {
+          "status": 200
+        },
+        "catalog": {
+          "status": 200
+        },
+        "detections": {
+          "status": 200
+        }
+      }
+    },
+    {
+      "target": "Barnard",
+      "status": "PASS",
+      "frames": 12,
+      "epochs": 3,
+      "data_versions": [
+        "27"
+      ],
+      "images": {
+        "blink": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 6394
+        },
+        "stack": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 5609
+        },
+        "diff": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 92795
+        }
+      },
+      "resources": {
+        "pixel": {
+          "status": 200
+        },
+        "motion": {
+          "status": 200
+        },
+        "spectrum": {
+          "status": 200
+        },
+        "catalog": {
+          "status": 200
+        },
+        "detections": {
+          "status": 200
+        }
+      }
+    },
+    {
+      "target": "EpsilonIndiB",
+      "status": "PASS",
+      "frames": 12,
+      "epochs": 6,
+      "data_versions": [
+        "27"
+      ],
+      "images": {
+        "blink": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 6742
+        },
+        "stack": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 8192
+        },
+        "diff": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 74793
+        }
+      },
+      "resources": {
+        "pixel": {
+          "status": 200
+        },
+        "motion": {
+          "status": 200
+        },
+        "spectrum": {
+          "status": 200
+        },
+        "catalog": {
+          "status": 200
+        },
+        "detections": {
+          "status": 200
+        }
+      }
+    },
+    {
+      "target": "RWAurigae",
+      "status": "PASS",
+      "frames": 9,
+      "epochs": 3,
+      "data_versions": [
+        "27"
+      ],
+      "images": {
+        "blink": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 6524
+        },
+        "stack": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 8151
+        },
+        "diff": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 114486
+        }
+      },
+      "resources": {
+        "pixel": {
+          "status": 200
+        },
+        "motion": {
+          "status": 200
+        },
+        "spectrum": {
+          "status": 200
+        },
+        "catalog": {
+          "status": 200
+        },
+        "detections": {
+          "status": 200
+        }
+      }
+    },
+    {
+      "target": "RDraconis",
+      "status": "PASS",
+      "frames": 6,
+      "epochs": 4,
+      "data_versions": [
+        "27"
+      ],
+      "images": {
+        "blink": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 9716
+        },
+        "stack": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 8287
+        },
+        "diff": {
+          "size": [
+            512,
+            512
+          ],
+          "bytes": 46052
+        }
+      },
+      "resources": {
+        "pixel": {
+          "status": 200
+        },
+        "motion": {
+          "status": 200
+        },
+        "spectrum": {
+          "status": 200
+        },
+        "catalog": {
+          "status": 200
+        },
+        "detections": {
+          "status": 200
+        }
+      }
+    }
+  ],
+  "command": "\"C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe\" scripts/check_frontend_compat.py",
+  "mode": "cache"
+}

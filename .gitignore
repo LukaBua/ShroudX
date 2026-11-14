@@ -21,7 +21,21 @@ dist/
 build/
 .parcel-cache/
 node_modules/
+*.tsbuildinfo
+scratch/
 
 # OS artifacts
 .DS_Store
 Thumbs.db
+
+# Local practice checkout (never include in the ShroudX commit)
+/spaceapps/
+
+# Routine runtime measurements; named reproducible verification reports stay visible
+/results/frontend-compat-*.json
+!/results/frontend-compat-api-check.json
+/results/motion-*.json
+/results/tracking-*.json
+/results/spectrum-*.json
+!/results/tracking-wise0855.json
+!/results/spectrum-wise0855.json

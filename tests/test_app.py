@@ -404,7 +404,8 @@ def test_static_health_and_no_cors(api, tmp_path):
     client, _, _ = api
     (tmp_path / "example.bin").write_bytes(b"1234")
     assert client.get("/health").json()["cache_size_mb"] == 4 / 1_000_000
-    assert "SHROUDX" in client.get("/").text
+    assert client.get("/").status_code == 200
+    assert "SHROUDX" in client.get("/legacy").text
     assert client.get("/static/index.html").status_code == 200
     response = client.get("/health", headers={"Origin": "https://example.org"})
     assert "access-control-allow-origin" not in response.headers

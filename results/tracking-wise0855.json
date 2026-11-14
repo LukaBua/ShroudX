@@ -1,0 +1,339 @@
+{
+  "synthetic": false,
+  "config": {
+    "search_radius_px": 4,
+    "peak_snr": 3.0,
+    "centroid_snr": 5.0,
+    "radii": [
+      4.0,
+      3.0,
+      2.5
+    ],
+    "bg_inner_radius": 5.0,
+    "bg_outer_radius": 8.0,
+    "max_width_um": 0.1
+  },
+  "frames": [
+    {
+      "index": 0,
+      "mjd": 60801.450117,
+      "wavelength_um": 4.1447736280634215,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/5/level2_2025W19_1B_0231_4D5_spx_l2b-v27-2026-197.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 1,
+      "mjd": 60986.853684,
+      "wavelength_um": 4.153165067839173,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_1D5_spx_l2b-v27-2026-247.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 2,
+      "mjd": 60986.855176,
+      "wavelength_um": 4.1889694624922456,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_2D5_spx_l2b-v27-2026-247.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "detected",
+      "reason": null,
+      "measured": {
+        "x": 19.91086670146656,
+        "y": 19.603284496038793,
+        "fits_x": 19.41086670146656,
+        "fits_y": 18.896715503961207,
+        "sigma_x": 0.22336714146302877,
+        "sigma_y": 0.2402845207101183,
+        "ra": 133.7590568192223,
+        "dec": -7.242362443801054,
+        "sigma_ra_arcsec": 1.373707951859233,
+        "sigma_dec_arcsec": 1.4777498022507474,
+        "covariance_arcsec2": [
+          [
+            1.8870735370012885,
+            4.4780132148042205e-07
+          ],
+          [
+            4.478013214804219e-07,
+            2.183744478052123
+          ]
+        ],
+        "snr": 5.2082188692331455
+      },
+      "warnings": []
+    },
+    {
+      "index": 3,
+      "mjd": 60986.856669,
+      "wavelength_um": 4.224863273486272,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_3D5_spx_l2b-v27-2026-247.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 4,
+      "mjd": 61021.8922,
+      "wavelength_um": 4.153135419421957,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0391_1D5_spx_l2b-v27-2026-210.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 5,
+      "mjd": 61022.231084,
+      "wavelength_um": 4.188809205953361,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0479_1D5_spx_l2b-v27-2026-210.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "detected",
+      "reason": null,
+      "measured": {
+        "x": 19.648402777038807,
+        "y": 19.495335567807793,
+        "fits_x": 19.148402777038807,
+        "fits_y": 19.004664432192207,
+        "sigma_x": 0.24116329502132577,
+        "sigma_y": 0.23400051831822385,
+        "ra": 133.75950880121619,
+        "dec": -7.2421780315237365,
+        "sigma_ra_arcsec": 1.4831542545983118,
+        "sigma_dec_arcsec": 1.4391031862027228,
+        "covariance_arcsec2": [
+          [
+            2.199746542933074,
+            -3.1773232046073865e-08
+          ],
+          [
+            -3.177323204607399e-08,
+            2.0710179805388287
+          ]
+        ],
+        "snr": 5.231960012470181
+      },
+      "warnings": []
+    },
+    {
+      "index": 6,
+      "mjd": 61022.368105,
+      "wavelength_um": 4.224682820966444,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0512_1D5_spx_l2b-v27-2026-210.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 7,
+      "mjd": 61162.673655,
+      "wavelength_um": 4.222119647081147,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0519_1D5_spx_l2b-v27-2026-244.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 8,
+      "mjd": 61163.215717,
+      "wavelength_um": 4.180312170754152,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_1D5_spx_l2b-v27-2026-244.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 9,
+      "mjd": 61163.217209,
+      "wavelength_um": 4.216367784889965,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_2D5_spx_l2b-v27-2026-244.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    },
+    {
+      "index": 10,
+      "mjd": 61171.567192,
+      "wavelength_um": 4.222164081796975,
+      "detector": 5,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W20_1A/l2b-v27-2026-246/5/level2_2026W20_1A_0214_1D5_spx_l2b-v27-2026-246.fits",
+      "image_shape": [
+        39,
+        39
+      ],
+      "predicted": {
+        "ra": 133.75976436144327,
+        "dec": -7.242186,
+        "sigma_arcsec": null,
+        "x": 19.5,
+        "y": 19.500000000002053
+      },
+      "status": "rejected",
+      "reason": "no_qualified_source",
+      "measured": null,
+      "warnings": []
+    }
+  ],
+  "n_frames": 11,
+  "n_detected": 2,
+  "warnings": [
+    "Positional association is not proof of source identity.",
+    "Centroid errors exclude WCS calibration systematics and reprojection correlations.",
+    "Constant-position prediction: moving sources outside the search gate are rejected.",
+    "High proper-motion target (8.15 arcsec/yr): position propagated from epoch 2000.0 to SPHEREx epoch 2026.0 (source: 2021ApJS..253....7K)."
+  ],
+  "selection": {
+    "ra": 133.75976436144327,
+    "dec": -7.242186,
+    "fov_arcsec": 240.0,
+    "detector": 5,
+    "window_um": [
+      4.1447736280634215,
+      4.224863273486272
+    ],
+    "mode": "cache",
+    "cache_dir": "C:\\Users\\Home\\Desktop\\ShroudX\\cache"
+  },
+  "command": "C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe C:\\Users\\Home\\Desktop\\ShroudX\\tracking.py --target \"WISE 0855-0714\" --detector 5 --fov 240 --mode cache --output results/tracking-wise0855.json",
+  "data_versions": [
+    "27"
+  ]
+}
