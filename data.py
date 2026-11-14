@@ -586,6 +586,19 @@ def download_cutout(
     dest_path = Path(dest)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # Resume support: if dest_path already exists on disk for the same URI (when using
+    # the live network fetcher), reuse the valid cached file instead of re-downloading.
+    if fetcher is None and dest_path.is_file() and dest_path.stat().st_size > 0:
+        try:
+            with warnings_suppressed(), fits.open(dest_path, memmap=False) as existing_hdul:
+                if all(name in existing_hdul for name in REQUIRED_HDU_NAMES):
+                    expected_uri = str(metadata.get("uri", "")) if metadata else ""
+                    cached_uri = str(existing_hdul["PRIMARY"].header.get("SPHXURI", ""))
+                    if not expected_uri or cached_uri == expected_uri:
+                        return True
+        except Exception:
+            pass
+
     for attempt in range(retries):
         tmp_path: Path | None = None
         try:
