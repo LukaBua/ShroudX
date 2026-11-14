@@ -596,7 +596,7 @@ def test_fetch_cutouts_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert rc == 0
     cached_dirs = list(tmp_path.glob("ra*_dec*_s240"))
     assert len(cached_dirs) == 1
-    assert (cached_dirs[0] / "0001.fits").is_file()
+    assert (cached_dirs[0] / "0001.fits.gz").is_file()
     assert (cached_dirs[0] / "index.csv").is_file()
 
 
@@ -718,3 +718,86 @@ def test_wavelength_never_falls_back_to_crval_or_implausible_values() -> None:
         ra=133.76, dec=-7.24, mjd=60900.0,
     )
     assert ok.wavelength == pytest.approx(4.2)
+
+
+def test_live_download_writes_gzipped_fits_and_compress_cache_converts_existing(
+    tmp_path: Path,
+) -> None:
+    """New cutouts are written as .fits.gz, and compress_cache converts legacy .fits caches."""
+    hdul1 = _make_cutout_hdul(
+        ny=20,
+        nx=20,
+        ra=133.76,
+        dec=-7.24,
+        detector=5,
+        mjd=60900.5,
+        w0_um=4.12,
+        include_psf=True,
+        uri="spherex/l2b-v20/f1.fits",
+    )
+    hdul2 = _make_cutout_hdul(
+        ny=20,
+        nx=20,
+        ra=133.76,
+        dec=-7.24,
+        detector=5,
+        mjd=61080.5,
+        w0_um=4.14,
+        include_psf=True,
+        uri="spherex/l2b-v20/f2.fits",
+    )
+
+    # 1. download_cutout with a .fits.gz target produces a valid gzipped FITS smaller than raw
+    raw_dir = tmp_path / "raw_check"
+    raw_dest = raw_dir / "0001.fits"
+    gz_dest = raw_dir / "0001.fits.gz"
+    assert download_cutout(
+        "http://example.invalid/raw",
+        raw_dest,
+        fetcher=lambda _u: hdul1,
+        metadata={"mjd": 60900.5, "bandpass": "SPHEREx-D5", "uri": "spherex/l2b-v20/f1.fits"},
+    )
+    assert download_cutout(
+        "http://example.invalid/gz",
+        gz_dest,
+        fetcher=lambda _u: hdul1,
+        metadata={"mjd": 60900.5, "bandpass": "SPHEREx-D5", "uri": "spherex/l2b-v20/f1.fits"},
+    )
+    assert gz_dest.read_bytes()[:2] == b"\x1f\x8b"
+    assert gz_dest.stat().st_size < raw_dest.stat().st_size
+    assert list(raw_dir.glob("*.tmp.fits*")) == []
+
+    # 2. Legacy cache with .fits files and index.csv converts cleanly via compress_cache
+    legacy_root = tmp_path / "legacy_cache"
+    bucket_dir = legacy_root / cache_key_for(133.76, -7.24, 120)
+    bucket_dir.mkdir(parents=True)
+    with data.warnings_suppressed():
+        hdul1.writeto(bucket_dir / "0001.fits", overwrite=True, output_verify="silentfix")
+        hdul2.writeto(bucket_dir / "0002.fits", overwrite=True, output_verify="silentfix")
+    data._write_index_csv(
+        bucket_dir,
+        [
+            ("0001.fits", 60900.5, "SPHEREx-D5", "spherex/l2b-v20/f1.fits"),
+            ("0002.fits", 61080.5, "SPHEREx-D5", "spherex/l2b-v20/f2.fits"),
+        ],
+    )
+
+    summary = data.compress_cache(legacy_root)
+    assert summary["files_compressed"] == 2
+    assert summary["files_already_compressed"] == 0
+    assert summary["directories_updated"] == 1
+    assert summary["bytes_after"] < summary["bytes_before"]
+    assert not (bucket_dir / "0001.fits").exists()
+    assert not (bucket_dir / "0002.fits").exists()
+    assert (bucket_dir / "0001.fits.gz").is_file()
+    assert (bucket_dir / "0002.fits.gz").is_file()
+
+    index_text = (bucket_dir / "index.csv").read_text(encoding="utf-8")
+    assert "0001.fits.gz" in index_text
+    assert "0002.fits.gz" in index_text
+
+    frames = get_frames(133.76, -7.24, fov=120.0, mode="cache", cache_root=legacy_root)
+    assert len(frames) == 2
+    assert [f.mjd for f in frames] == [pytest.approx(60900.5), pytest.approx(61080.5)]
+    assert frames[0].wavelength == pytest.approx(4.12, rel=1e-4)
+    assert frames[1].wavelength == pytest.approx(4.14, rel=1e-4)

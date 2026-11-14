@@ -165,8 +165,17 @@ def bundle_demo_cache(
 
             new_index_rows: list[tuple[str, float, str, str]] = []
             for idx, (old_fname, mjd, bandpass, uri) in enumerate(selected_rows, start=1):
-                new_fname = f"{idx:04d}.fits"
-                shutil.copy2(src_cdir / old_fname, dest_cdir / new_fname)
+                new_fname = f"{idx:04d}{data.DEFAULT_CACHE_EXTENSION}"
+                src_file = data._resolve_cached_fits_path(src_cdir, old_fname)
+                if src_file is None:
+                    raise FileNotFoundError(
+                        f"Missing cached cutout {old_fname} in {src_cdir}"
+                    )
+                dest_file = dest_cdir / new_fname
+                if src_file.name.endswith(".fits.gz"):
+                    shutil.copy2(src_file, dest_file)
+                else:
+                    data.compress_fits_file(src_file, dest_file, remove_original=False)
                 new_index_rows.append((new_fname, mjd, bandpass, uri))
 
             data._write_index_csv(dest_cdir, new_index_rows)
@@ -188,7 +197,7 @@ def bundle_demo_cache(
             detectors = sorted({int(f.detector) for f in bundled_frames})
 
             files_in_dir = [p for p in dest_cdir.iterdir() if p.is_file()]
-            fits_sizes = [p.stat().st_size for p in files_in_dir if p.suffix == ".fits"]
+            fits_sizes = [p.stat().st_size for p in files_in_dir if data._is_cached_fits_file(p)]
             all_file_sizes.extend(fits_sizes)
             dir_bytes = sum(p.stat().st_size for p in files_in_dir)
 

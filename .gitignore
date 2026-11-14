@@ -10,11 +10,11 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# Data and cutout downloads / cache
-cache/
+# Data and cutout downloads / cache (track compressed .fits.gz, index.csv, and gaia/ in cache/)
 downloads/
 *.fits
-*.fits.gz
+*.tmp.fits*
+cache/**/.*
 
 # Frontend build output
 dist/

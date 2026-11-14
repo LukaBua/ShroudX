@@ -127,6 +127,11 @@ def build_parser() -> argparse.ArgumentParser:
         choices=["live", "auto", "cache"],
         help="Data retrieval mode (default: live).",
     )
+    parser.add_argument(
+        "--compress-cache",
+        action="store_true",
+        help="Compress existing *.fits files in --cache-dir into *.fits.gz and exit.",
+    )
     return parser
 
 
@@ -134,6 +139,24 @@ def main(argv: Sequence[str] | None = None) -> int:
     """Run the CLI cutout fetcher and return an exit status code."""
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.compress_cache and args.target is None and args.ra is None and args.dec is None:
+        try:
+            summary = data.compress_cache(
+                args.cache_dir,
+                max_workers=max(1, int(args.workers)),
+            )
+        except Exception as exc:
+            print(f"Error compressing cache: {exc}", file=sys.stderr)
+            return 1
+        print(
+            f"Compressed {summary['files_compressed']} FITS file(s) across "
+            f"{summary['directories_updated']} folder(s) "
+            f"({summary['files_already_compressed']} already compressed): "
+            f"{summary['mb_before']:.2f} MB -> {summary['mb_after']:.2f} MB "
+            f"(saved {summary['saved_mb']:.2f} MB)."
+        )
+        return 0
 
     try:
         ra_deg, dec_deg, warnings = _resolve_position(

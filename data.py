@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
+import gzip
 import io
 import json
 import os
 import re
+import shutil
+import sys
 import tempfile
 import time
 from collections.abc import Callable, Sequence
@@ -35,6 +39,8 @@ VALID_MODES: frozenset[str] = frozenset({"cache", "live", "auto", "synthetic"})
 KEPT_HDU_NAMES: tuple[str, ...] = ("PRIMARY", "IMAGE", "FLAGS", "VARIANCE", "ZODI", "WCS-WAVE")
 REQUIRED_HDU_NAMES: tuple[str, ...] = ("IMAGE", "FLAGS", "VARIANCE", "ZODI", "WCS-WAVE")
 INDEX_COLUMNS: tuple[str, ...] = ("file", "mjd", "bandpass", "uri")
+FITS_SUFFIXES: tuple[str, ...] = (".fits.gz", ".fits")
+DEFAULT_CACHE_EXTENSION: str = ".fits.gz"
 # Written next to index.csv when some cutouts failed to download, so a later request knows the
 # cached sequence is incomplete instead of silently serving it as if it were whole.
 INCOMPLETE_MARKER: str = "incomplete.json"
@@ -618,18 +624,30 @@ def download_cutout(
     dest_path = Path(dest)
     dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Resume support: if dest_path already exists on disk for the same URI (when using
-    # the live network fetcher), reuse the valid cached file instead of re-downloading.
-    if fetcher is None and dest_path.is_file() and dest_path.stat().st_size > 0:
-        try:
-            with warnings_suppressed(), fits.open(dest_path, memmap=False) as existing_hdul:
-                if all(name in existing_hdul for name in REQUIRED_HDU_NAMES):
-                    expected_uri = str(metadata.get("uri", "")) if metadata else ""
-                    cached_uri = str(existing_hdul["PRIMARY"].header.get("SPHXURI", ""))
-                    if not expected_uri or cached_uri == expected_uri:
-                        return True
-        except Exception:
-            pass
+    # Resume support: if dest_path (or an uncompressed/compressed sibling) already exists on
+    # disk for the same URI (when using the live network fetcher), reuse the valid cached file
+    # instead of re-downloading.
+    if fetcher is None:
+        existing_path = _resolve_cached_fits_path(dest_path.parent, dest_path.name)
+        if existing_path is not None and existing_path.stat().st_size > 0:
+            try:
+                with warnings_suppressed(), fits.open(
+                    existing_path, memmap=False
+                ) as existing_hdul:
+                    if all(name in existing_hdul for name in REQUIRED_HDU_NAMES):
+                        expected_uri = str(metadata.get("uri", "")) if metadata else ""
+                        cached_uri = str(existing_hdul["PRIMARY"].header.get("SPHXURI", ""))
+                        if not expected_uri or cached_uri == expected_uri:
+                            if existing_path != dest_path and dest_path.name.endswith(".fits.gz"):
+                                compress_fits_file(
+                                    existing_path,
+                                    dest_path,
+                                    remove_original=True,
+                                    strip_psf=False,
+                                )
+                            return True
+            except Exception:
+                pass
 
     for attempt in range(retries):
         tmp_path: Path | None = None
@@ -655,9 +673,12 @@ def download_cutout(
                     if "uri" in metadata and metadata["uri"]:
                         pri_hdr["SPHXURI"] = str(metadata["uri"])
 
+                is_gz = dest_path.name.endswith(".gz")
+                tmp_suffix = ".tmp.fits.gz" if is_gz else ".tmp.fits"
+                stem = _fits_stem(dest_path.name)
                 fd, tmp_name = tempfile.mkstemp(
-                    prefix=f".{dest_path.stem}_",
-                    suffix=".tmp.fits",
+                    prefix=f".{stem}_",
+                    suffix=tmp_suffix,
                     dir=str(dest_path.parent),
                 )
                 os.close(fd)
@@ -843,11 +864,237 @@ def _extract_header_bandpass_and_uri(hdul: fits.HDUList, fallback_name: str) -> 
     return bandpass, uri
 
 
+def _fits_stem(filename: str) -> str:
+    """Strip ``.fits.gz`` or ``.fits`` from ``filename``."""
+    for suffix in FITS_SUFFIXES:
+        if filename.endswith(suffix):
+            return filename[: -len(suffix)]
+    return Path(filename).stem
+
+
+def _is_cached_fits_file(path: Path) -> bool:
+    """Return True if ``path`` is a non-temporary cached ``.fits`` or ``.fits.gz`` file."""
+    name = path.name
+    if not path.is_file() or name.startswith("."):
+        return False
+    if name.endswith((".tmp.fits", ".tmp.fits.gz")):
+        return False
+    return name.endswith(FITS_SUFFIXES)
+
+
+def _iter_cached_fits_files(cache_dir: Path) -> list[Path]:
+    """List cached FITS files in ``cache_dir``, preferring ``.fits.gz`` over ``.fits``."""
+    if not cache_dir.is_dir():
+        return []
+    by_stem: dict[str, Path] = {}
+    for p in cache_dir.iterdir():
+        if not _is_cached_fits_file(p):
+            continue
+        stem = _fits_stem(p.name)
+        existing = by_stem.get(stem)
+        if existing is None or (
+            p.name.endswith(".fits.gz") and not existing.name.endswith(".fits.gz")
+        ):
+            by_stem[stem] = p
+    return sorted(by_stem.values(), key=lambda p: (_fits_stem(p.name), p.name))
+
+
+def _resolve_cached_fits_path(cache_dir: Path, fname: str) -> Path | None:
+    """Resolve ``fname`` in ``cache_dir``, falling back between ``.fits`` and ``.fits.gz``."""
+    exact = cache_dir / fname
+    if exact.is_file():
+        return exact
+    if fname.endswith(".fits"):
+        gz = cache_dir / f"{fname}.gz"
+        if gz.is_file():
+            return gz
+    elif fname.endswith(".fits.gz"):
+        raw = cache_dir / fname[:-3]
+        if raw.is_file():
+            return raw
+    return None
+
+
+def _is_gzip_file(path: Path) -> bool:
+    """Return True if ``path`` starts with the gzip magic bytes ``\\x1f\\x8b``."""
+    with path.open("rb") as fh:
+        return fh.read(2) == b"\x1f\x8b"
+
+
+def compress_fits_file(
+    src: str | Path,
+    dest: str | Path | None = None,
+    *,
+    remove_original: bool = True,
+    strip_psf: bool = True,
+    compresslevel: int = 9,
+) -> Path:
+    """Atomically gzip-compress a FITS cutout to ``.fits.gz``.
+
+    When ``strip_psf`` is True and the cutout contains a ``PSF`` extension alongside
+    all required SPHEREx extensions, the ``PSF`` layer is dropped while writing the
+    compressed file. Otherwise the FITS stream is compressed with ``gzip``.
+    """
+    src_path = Path(src)
+    if not src_path.is_file():
+        raise FileNotFoundError(f"FITS file not found: {src_path}")
+
+    if dest is not None:
+        dest_path = Path(dest)
+    elif src_path.name.endswith(".fits.gz"):
+        dest_path = src_path
+    else:
+        dest_path = src_path.with_name(f"{src_path.name}.gz")
+
+    dest_path.parent.mkdir(parents=True, exist_ok=True)
+    already_gz = _is_gzip_file(src_path)
+
+    if already_gz and not strip_psf and src_path.resolve() == dest_path.resolve():
+        return dest_path
+
+    def _make_tmp() -> Path:
+        stem = _fits_stem(dest_path.name)
+        tmp_suffix = ".tmp.fits.gz" if dest_path.name.endswith(".gz") else ".tmp.fits"
+        fd, tmp_name = tempfile.mkstemp(
+            prefix=f".{stem}_",
+            suffix=tmp_suffix,
+            dir=str(dest_path.parent),
+        )
+        os.close(fd)
+        return Path(tmp_name)
+
+    tmp_path: Path | None = None
+    try:
+        wrote_stripped = False
+        if strip_psf:
+            with warnings_suppressed(), fits.open(src_path, memmap=False) as hdul:
+                if "PSF" in hdul and all(name in hdul for name in REQUIRED_HDU_NAMES):
+                    filtered = _filter_kept_hdus(hdul)
+                    tmp_path = _make_tmp()
+                    filtered.writeto(tmp_path, overwrite=True, output_verify="silentfix")
+                    wrote_stripped = True
+
+        if not wrote_stripped:
+            if already_gz and src_path.resolve() == dest_path.resolve():
+                return dest_path
+            tmp_path = _make_tmp()
+            if already_gz:
+                with src_path.open("rb") as src_fh, tmp_path.open("wb") as dst_fh:
+                    shutil.copyfileobj(src_fh, dst_fh)
+            else:
+                with (
+                    src_path.open("rb") as src_fh,
+                    gzip.GzipFile(tmp_path, mode="wb", compresslevel=compresslevel) as gz_fh,
+                ):
+                    shutil.copyfileobj(src_fh, gz_fh)
+
+        assert tmp_path is not None
+        os.replace(tmp_path, dest_path)
+        tmp_path = None
+    finally:
+        if tmp_path is not None and tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+
+    if remove_original and src_path.resolve() != dest_path.resolve() and src_path.exists():
+        src_path.unlink()
+
+    return dest_path
+
+
+def compress_cache(
+    cache_root: str | Path = "cache",
+    *,
+    remove_original: bool = True,
+    strip_psf: bool = True,
+    max_workers: int = 4,
+    compresslevel: int = 9,
+) -> dict[str, Any]:
+    """Compress all cached ``*.fits`` cutouts under ``cache_root`` into ``*.fits.gz``.
+
+    Updates each folder's ``index.csv`` via ``read_or_rebuild_index`` and clears
+    the in-process memory cache. Returns a summary dict with file counts and sizes.
+    """
+    croot = Path(cache_root)
+    if not croot.is_dir():
+        raise FileNotFoundError(f"Cache directory not found: {croot}")
+
+    dir_set: set[Path] = set()
+    for p in croot.rglob("*"):
+        if _is_cached_fits_file(p):
+            dir_set.add(p.parent)
+    candidate_dirs = sorted(dir_set)
+
+    uncompressed_files: list[Path] = []
+    already_compressed = 0
+    bytes_before = 0
+    for cdir in candidate_dirs:
+        for p in sorted(cdir.iterdir()):
+            if not _is_cached_fits_file(p):
+                continue
+            bytes_before += p.stat().st_size
+            if p.name.endswith(".fits"):
+                uncompressed_files.append(p)
+            elif p.name.endswith(".fits.gz"):
+                already_compressed += 1
+
+    files_compressed = 0
+    if uncompressed_files:
+        workers = max(1, int(max_workers))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futures = [
+                pool.submit(
+                    compress_fits_file,
+                    fpath,
+                    None,
+                    remove_original=remove_original,
+                    strip_psf=strip_psf,
+                    compresslevel=compresslevel,
+                )
+                for fpath in uncompressed_files
+            ]
+            for fut in as_completed(futures):
+                fut.result()
+                files_compressed += 1
+
+    for cdir in candidate_dirs:
+        read_or_rebuild_index(cdir)
+
+    bytes_after = 0
+    for cdir in candidate_dirs:
+        for p in cdir.iterdir():
+            if not _is_cached_fits_file(p):
+                continue
+            if not remove_original and p.name.endswith(".fits"):
+                if p.with_name(f"{p.name}.gz").is_file():
+                    continue
+            bytes_after += p.stat().st_size
+
+    clear_memory_cache()
+    mb_before = bytes_before / 1_000_000.0
+    mb_after = bytes_after / 1_000_000.0
+    saved_mb = (bytes_before - bytes_after) / 1_000_000.0
+    ratio = (bytes_before / bytes_after) if bytes_after > 0 else 1.0
+    return {
+        "files_compressed": files_compressed,
+        "files_already_compressed": already_compressed,
+        "directories_updated": len(candidate_dirs),
+        "bytes_before": int(bytes_before),
+        "bytes_after": int(bytes_after),
+        "mb_before": round(mb_before, 4),
+        "mb_after": round(mb_after, 4),
+        "saved_mb": round(saved_mb, 4),
+        "compression_ratio": round(ratio, 3),
+    }
+
+
 def rebuild_cache_index(cache_dir: str | Path) -> list[tuple[str, float, str, str]]:
-    """Rebuild ``index.csv`` in ``cache_dir`` by scanning ``*.fits`` headers.
+    """Rebuild ``index.csv`` in ``cache_dir`` by scanning cached FITS headers.
 
     Args:
-        cache_dir: Directory containing cached ``NNNN.fits`` cutout files.
+        cache_dir: Directory containing cached ``NNNN.fits`` or ``NNNN.fits.gz`` files.
 
     Returns:
         List of ``(file, mjd, bandpass, uri)`` tuples sorted by MJD and written to ``index.csv``.
@@ -856,9 +1103,7 @@ def rebuild_cache_index(cache_dir: str | Path) -> list[tuple[str, float, str, st
     if not cdir.is_dir():
         return []
 
-    fits_files = sorted(
-        p for p in cdir.glob("*.fits") if not p.name.startswith(".") and p.is_file()
-    )
+    fits_files = _iter_cached_fits_files(cdir)
     entries: list[tuple[str, float, str, str]] = []
     for fpath in fits_files:
         try:
@@ -881,18 +1126,18 @@ def read_or_rebuild_index(cache_dir: str | Path) -> list[tuple[str, float, str, 
     if not cdir.is_dir():
         return []
 
-    index_path = cdir / "index.csv"
-    fits_files = {
-        p.name for p in cdir.glob("*.fits") if not p.name.startswith(".") and p.is_file()
-    }
-    if not fits_files:
+    disk_files = _iter_cached_fits_files(cdir)
+    if not disk_files:
         return []
+    disk_names = {p.name for p in disk_files}
 
+    index_path = cdir / "index.csv"
     if not index_path.is_file():
         return rebuild_cache_index(cdir)
 
     try:
         rows: list[tuple[str, float, str, str]] = []
+        mapped = False
         with index_path.open("r", newline="", encoding="utf-8") as fh:
             reader = csv.DictReader(fh)
             if reader.fieldnames is None or tuple(reader.fieldnames) != INDEX_COLUMNS:
@@ -902,14 +1147,21 @@ def read_or_rebuild_index(cache_dir: str | Path) -> list[tuple[str, float, str, 
                 mjd_str = (row.get("mjd") or "").strip()
                 bandpass = (row.get("bandpass") or "").strip()
                 uri = (row.get("uri") or "").strip()
-                if not fname or fname not in fits_files or not mjd_str or not uri:
+                if not fname or not mjd_str or not uri:
                     return rebuild_cache_index(cdir)
+                resolved = _resolve_cached_fits_path(cdir, fname)
+                if resolved is None or resolved.name not in disk_names:
+                    return rebuild_cache_index(cdir)
+                if resolved.name != fname:
+                    mapped = True
                 mjd = float(mjd_str)
                 if not np.isfinite(mjd):
                     return rebuild_cache_index(cdir)
-                rows.append((fname, mjd, bandpass, uri))
-        if len(rows) != len(fits_files):
+                rows.append((resolved.name, mjd, bandpass, uri))
+        if len(rows) != len(disk_files) or {r[0] for r in rows} != disk_names:
             return rebuild_cache_index(cdir)
+        if mapped:
+            _write_index_csv(cdir, rows)
         return rows
     except Exception:
         return rebuild_cache_index(cdir)
@@ -1099,8 +1351,8 @@ def _load_frames_from_cache_dir(
     loaded: list[Frame] = []
     need_crop = float(fov_arcsec) < float(bucket_arcsec) - 1e-6
     for fname, mjd, bandpass, uri in rows:
-        fpath = cache_dir / fname
-        if not fpath.is_file():
+        fpath = _resolve_cached_fits_path(cache_dir, fname)
+        if fpath is None:
             continue
         with warnings_suppressed(), fits.open(fpath, memmap=False) as hdul:
             frame = frame_from_hdul(
@@ -1454,7 +1706,7 @@ def _fetch_live_frames(
 
     download_jobs: list[tuple[str, Path, ImageRecord]] = []
     for idx, rec in enumerate(records, start=1):
-        fname = f"{idx:04d}.fits"
+        fname = f"{idx:04d}{DEFAULT_CACHE_EXTENSION}"
         dest_path = target_cache_dir / fname
         url = build_cutout_url(rec.uri, ra_norm, dec_norm, bucket_arcsec)
         download_jobs.append((url, dest_path, rec))
@@ -1503,3 +1755,61 @@ def _fetch_live_frames(
         f.meta["synthetic"] = False
     _tag_failed_downloads(frames, len(failed_uris))
     return frames
+
+
+def _build_cli_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Compress cached SPHEREx FITS cutouts to .fits.gz in-place."
+    )
+    parser.add_argument(
+        "--cache-dir",
+        type=Path,
+        default=Path("cache"),
+        help="Root cache directory containing SPHEREx cutout folders (default: cache).",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=4,
+        help="Number of parallel compression workers (default: 4).",
+    )
+    parser.add_argument(
+        "--keep-original",
+        action="store_true",
+        help="Keep uncompressed .fits files after creating .fits.gz copies.",
+    )
+    parser.add_argument(
+        "--no-strip-psf",
+        action="store_true",
+        help="Do not strip the PSF extension while compressing .fits files.",
+    )
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """CLI entry point to compress an existing SPHEREx cutout cache to ``.fits.gz``."""
+    parser = _build_cli_parser()
+    args = parser.parse_args(argv)
+    try:
+        summary = compress_cache(
+            args.cache_dir,
+            remove_original=not args.keep_original,
+            strip_psf=not args.no_strip_psf,
+            max_workers=args.workers,
+        )
+    except FileNotFoundError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 1
+
+    print(
+        f"Compressed {summary['files_compressed']} FITS file(s) across "
+        f"{summary['directories_updated']} folder(s) "
+        f"({summary['files_already_compressed']} already compressed): "
+        f"{summary['mb_before']:.2f} MB -> {summary['mb_after']:.2f} MB "
+        f"(saved {summary['saved_mb']:.2f} MB, ratio {summary['compression_ratio']:.2f}x)."
+    )
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

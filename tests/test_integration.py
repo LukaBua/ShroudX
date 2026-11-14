@@ -265,7 +265,7 @@ def test_full_pipeline_from_coordinates_to_api_png(tmp_path: Path) -> None:
     assert all(f.meta is not None and f.meta["data_source"] == "archive" for f in frames)
 
     # Verify PSF was stripped on disk, HOT pixel (3, 3) masked, OVERFLOW (5, 5) unreliable.
-    cached_fits = sorted(tmp_path.glob("ra*_dec*_s120/*.fits"))
+    cached_fits = sorted(tmp_path.glob("ra*_dec*_s120/*.fits.gz"))
     assert len(cached_fits) == 6
     with fits.open(cached_fits[0]) as saved_hdul:
         assert "PSF" not in [h.name for h in saved_hdul]
@@ -444,7 +444,7 @@ def test_offline_target_name_end_to_end_through_api(
         tap_query=lambda _q: tap_table,
         fetcher=fake_fetcher,
     )
-    assert len(list(tmp_path.glob("ra*_dec*_s480/*.fits"))) == 3
+    assert len(list(tmp_path.glob("ra*_dec*_s480/*.fits.gz"))) == 3
 
     data.clear_memory_cache()
     application = backend.create_app(mode="cache", cache_root=tmp_path)
