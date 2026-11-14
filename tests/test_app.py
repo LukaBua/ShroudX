@@ -83,7 +83,10 @@ def test_metadata_images_shared_stretch_and_cache(api, monkeypatch):
             assert image.size == (20, 20)
             # The source is north of centre in FITS and above centre in the PNG.
             assert np.unravel_index(np.argmax(np.asarray(image)), (20, 20))[0] < 10
-    response = client.get("/api/image.png", params={**POSITION, "mode": "stack", "index": "ignored"})
+    response = client.get(
+        "/api/image.png",
+        params={**POSITION, "mode": "stack", "index": "ignored"},
+    )
     assert response.status_code == 200
     assert response.headers["x-synthetic"] == "false"
     assert len(calls) == 1

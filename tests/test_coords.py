@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+
 import pytest
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.name_resolve import NameResolveError

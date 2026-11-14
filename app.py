@@ -205,7 +205,11 @@ def build_products(selection: Selection, data_mode: str, cache_root: Path) -> Pr
     grouped = processing.group_frames(frames, detector=selection.detector,
                                        wmin=selection.wmin, wmax=selection.wmax)
     if not grouped.frames:
-        raise APIError(422, "insufficient_data", "No usable frames in this detector/wavelength window.")
+        raise APIError(
+            422,
+            "insufficient_data",
+            "No usable frames in this detector/wavelength window.",
+        )
     aligned = processing.align_frames(
         tuple(processing.clean_frame(f) for f in grouped.frames),
         target_ra=resolved["ra"], target_dec=resolved["dec"], fov_arcsec=fov,
@@ -225,10 +229,15 @@ def build_products(selection: Selection, data_mode: str, cache_root: Path) -> Pr
     if len(epochs) < 2:
         warnings.append("Only one observation epoch is available; motion is not established.")
     if resolved["suggested_fov_arcsec"] and fov < resolved["suggested_fov_arcsec"]:
-        warnings.append("This field may be too small for a fast-moving target; consider 300 arcseconds.")
+        warnings.append(
+            "This field may be too small for a fast-moving target; consider 300 arcseconds."
+        )
     warnings.extend([
         "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
-        "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+        (
+            "Sigma-clipped stacking across epochs can suppress moving objects; "
+            "inspect the blink sequence."
+        ),
     ])
     sources = {(f.meta or {}).get("data_source") for f in frames}
     source = "synthetic" if is_synthetic else "archive" if "archive" in sources else "cache"
@@ -281,7 +290,9 @@ def create_app(*, mode: str | None = None, cache_root: str | Path | None = None)
         mapping = {"no_coverage": 404, "not_cached": 404, "archive_unreachable": 502}
         status = mapping.get(exc.code, 500)
         if status == 500:
-            return error_response(APIError(500, "internal_error", "Unable to process the observations."))
+            return error_response(
+                APIError(500, "internal_error", "Unable to process the observations.")
+            )
         return error_response(APIError(status, exc.code, str(exc)))
 
     @application.exception_handler(RequestValidationError)
@@ -295,7 +306,9 @@ def create_app(*, mode: str | None = None, cache_root: str | Path | None = None)
     @application.exception_handler(Exception)
     async def unexpected_error_handler(request: Request, exc: Exception):
         LOG.error("Unhandled ShroudX request error", exc_info=exc)
-        return error_response(APIError(500, "internal_error", "Unable to process the observations."))
+        return error_response(
+            APIError(500, "internal_error", "Unable to process the observations.")
+        )
 
     def products(selection: Selection) -> tuple[Products, bool]:
         # The app has a fixed mode/cache root. Selection includes every scientific
