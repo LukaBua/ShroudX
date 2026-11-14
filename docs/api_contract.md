@@ -220,7 +220,7 @@ Values above are illustrative, not real data. At most 500 sources are returned, 
 
 ### GET /api/motion
 
-Same parameters as `/api/meta`. Returns:
+Implemented. Same selection parameters as `/api/meta`; `mode` is validated but does not change the fit, and `epoch_a`/`epoch_b` are ignored. The fit uses all accepted epochs in the same cleaned, aligned detector/wavelength selection as the images, through `motion.measure_and_fit_epochs`. The API does not supply a fixed literature parallax or tune the fit to benchmark values. Returns:
 
 ```json
 {
@@ -250,6 +250,17 @@ Same parameters as `/api/meta`. Returns:
 
 `verdict` is `AGREE`, `UNINFORMATIVE` or `DISAGREE` when the target is in `data/benchmarks.csv`, otherwise null. Errors: 404 `no_coverage` for no coverage, 422 `insufficient_data` for too few epochs or frames.
 
+Details of the implemented response:
+
+- `epochs[].epoch` retains the original ID from `/api/meta` even if other epochs are rejected. `n_frames` counts accepted centroid measurements. `sigma_arcsec` is the larger of the RA*cos(Dec) and Dec marginal uncertainties. It is a conservative display radius, not a calibrated 2-D confidence region. Fit uncertainties and `uncertainty_scaled` are taken from `motion.py`; uncertainties are not scaled a second time by the API.
+- `epochs[]` additionally includes `x`, `y`, and `radius_px` for the overlay, projected through the aligned celestial WCS. Coordinates use PNG edges as the origin: `(0,0)` is the upper left, pixel centres are at half-integers, and `y` includes the FITS-to-PNG vertical flip. `radius_px = sigma_arcsec / pixel_scale_arcsec`. `image_shape` gives `[height, width]` for the SVG viewBox. The arrow connects earliest to latest accepted measured positions; it is not a fitted trajectory.
+- `chi2_reduced` is null when residual degrees of freedom are zero, with a warning. Unfitted parallax and its uncertainty are null. Errors/warnings returned by the motion module are shown without inventing missing measurements. A significance below 3 means motion is not established.
+- Benchmark names are matched by name or the coordinate module's known aliases, not by sky proximity. Literature values and `benchmark.citation` come only from `data/benchmarks.csv`, with mas converted to arcsec by the existing validation CSV loader. Verdicts use `scripts/validate_motion.py`'s predefined criteria: below 0.05 arcsec/yr literature motion, compare measured significance to 3; otherwise UNINFORMATIVE when sigma >= 0.3 times literature motion, AGREE when the vector residual is below 3 sigma, and DISAGREE otherwise. Disagreement includes the existing systematics diagnostics and an unresolved-systematics warning. Synthetic results have no benchmark verdict.
+- `synthetic` explicitly identifies simulated data. Base selection and motion warnings are combined. The Motion panel is optional: failure leaves blink/stack images available.
+- Every successful measurement is atomically written to `results/motion-<hash>.json`. `provenance` contains a rerunnable HTTP command, the data mode, selected frame URIs/MJDs/wavelengths/versions, and the benchmark CSV SHA-256. Reproduction requires the same code and data/cache. The command assumes a local server on port 8000 in the recorded mode. Computed results are never hand-edited.
+
+Additional errors: 400 for malformed selection parameters, 404 for missing cache or unknown target, 502 for archive failure. Motion-module rejection (too few accepted centroids, singular fit, mixed versions) returns 422 with its explanatory message. Unexpected failures return a safe 500. Missing benchmark CSV disables comparison with a warning; malformed or uncited benchmark records fail loudly.
+
 ### GET /api/movers
 
 Same parameters as `/api/meta`, plus `threshold` (3 to 10, sigma, default 5) and `max_pm` (arcseconds per year, default 15). Returns the ranked candidates, the false-match estimate, per-epoch source counts and warnings. The exact candidate fields are defined in Prompt 13.
@@ -267,6 +278,7 @@ Until the real endpoints exist, the frontend can serve static JSON files shaped 
 
 ## Changelog
 
+- Implemented `/api/motion`, projected centroid overlays, optional panel, benchmark verdict adaptation and reproducible JSON artifacts; documented null chi-squared and marginal error-circle semantics.
 - Added implemented Difference mode, epoch validation and error semantics, chronological sign convention, wavelength warnings and `X-Diff-Limit` behavior.
 - 1.2: Implemented `/api/blink.gif`, with exact size and provenance headers, captioned frames, integer speed validation and GIF timing resolution. Documented downscaling and display-only brightness/contrast controls.
 - 1.1: `/api/resolve` takes only `target`, `ra`, `dec`. Added the 422 `insufficient_data` error. Stated that `stretch` in `/api/meta` applies to blink and stack only, and added the `X-Diff-Limit` header for diff images. The diff wavelength warning threshold is now half of `max_width`.

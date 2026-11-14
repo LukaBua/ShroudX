@@ -1,0 +1,89 @@
+{
+  "epochs": [
+    {
+      "epoch": 0,
+      "mjd": 60900.75,
+      "ra": 133.76231871057507,
+      "dec": -7.240829468705674,
+      "sigma_arcsec": 0.04956882644266001,
+      "n_frames": 2,
+      "x": 8.65353023916644,
+      "y": 10.485546091012525,
+      "radius_px": 0.00805997177929431
+    },
+    {
+      "epoch": 1,
+      "mjd": 61082.899999999994,
+      "ra": 133.75776202372572,
+      "dec": -7.238995750039486,
+      "sigma_arcsec": 0.05056572176118723,
+      "n_frames": 2,
+      "x": 11.299592826642103,
+      "y": 9.412149562752962,
+      "radius_px": 0.008222068579054834
+    }
+  ],
+  "fit": {
+    "pm_arcsec_per_yr": 35.21412646722062,
+    "pm_sigma": 0.1407228446234718,
+    "position_angle_deg": 292.0800372658429,
+    "pa_sigma": 0.23000703846129844,
+    "parallax_arcsec": null,
+    "parallax_sigma": null,
+    "chi2_reduced": null,
+    "n_epochs": 2,
+    "significance": 250.23745477461094,
+    "uncertainty_scaled": false
+  },
+  "benchmark": {
+    "literature_pm_arcsec_per_yr": null,
+    "literature_parallax_arcsec": null,
+    "verdict": null,
+    "citation": null
+  },
+  "warnings": [
+    "SYNTHETIC DATA: simulated observations, not real SPHEREx measurements.",
+    "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
+    "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+    "Fewer than 3 epochs (2): parallax and proper motion are degenerate. Fit proper motion only (parallax not fitted).",
+    "Reduced chi-squared is undefined: no residual degrees of freedom."
+  ],
+  "synthetic": true,
+  "image_shape": [
+    20,
+    20
+  ],
+  "provenance": {
+    "data_mode": "synthetic",
+    "request": "/api/motion?ra=133.76&dec=-7.24&fov=120.0&detector=5&wmin=4.1000000000000005&wmax=4.14",
+    "frames": [
+      {
+        "uri": "synthetic://spherex/l2b-v20/synth_0000.fits",
+        "mjd": 60900.1,
+        "wavelength_um": 4.1000000000000005,
+        "version": 20
+      },
+      {
+        "uri": "synthetic://spherex/l2b-v20/synth_0001.fits",
+        "mjd": 60901.4,
+        "wavelength_um": 4.13,
+        "version": 20
+      },
+      {
+        "uri": "synthetic://spherex/l2b-v20/synth_0002.fits",
+        "mjd": 61082.2,
+        "wavelength_um": 4.11,
+        "version": 20
+      },
+      {
+        "uri": "synthetic://spherex/l2b-v20/synth_0003.fits",
+        "mjd": 61083.6,
+        "wavelength_um": 4.14,
+        "version": 20
+      }
+    ],
+    "benchmarks_sha256": "cfa9f3635c3a893db86caf04ace1716cccc31a3bf91928cd91ca9632e0e5614e",
+    "command": "curl.exe --fail \"http://127.0.0.1:8000/api/motion?ra=133.76&dec=-7.24&fov=120.0&detector=5&wmin=4.1000000000000005&wmax=4.14\" --output \"results/motion-f96cdb8d3f6001a517bb.json\"",
+    "instructions": "Run the server in the recorded data mode with the same data/cache and code."
+  }
+}

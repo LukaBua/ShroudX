@@ -11,17 +11,21 @@ per-request timeout.
 from __future__ import annotations
 
 import copy
+import hashlib
 import io
+import json
 import logging
 import math
 import os
 import re
 import threading
+import tempfile
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, TypeVar
+from urllib.parse import urlencode
 
 import numpy as np
 from astropy.time import Time
@@ -35,7 +39,9 @@ from starlette.staticfiles import StaticFiles
 import coords
 import data
 import processing
+import motion
 from frame import Frame
+from scripts.validate_motion import load_benchmarks, evaluate_criterion, investigate_systematics
 
 ROOT = Path(__file__).resolve().parent
 LOG = logging.getLogger(__name__)
@@ -533,6 +539,110 @@ def difference_limit(diff: np.ndarray) -> float:
     return limit if limit > 0 else float(np.max(values)) or 1.0
 
 
+def motion_result(product: Products, selection: Selection, benchmarks_path: Path) -> dict[str, Any]:
+    """Adapt motion results; verdict criteria remain in validate_motion.py.
+
+    No catalogue positions are inferred from proximity. Match names/known aliases
+    only, and read all literature values from the cited benchmark CSV. Epoch
+    error circles use max(sigma_RA*, sigma_Dec), not a 2-D confidence contour.
+    """
+    groups = processing.split_epochs(product.aligned)
+    if len(groups) < 2:
+        raise APIError(422, "insufficient_data", "At least two epochs are required to measure motion.")
+    target = product.metadata["target"]
+    try:
+        fit = motion.measure_and_fit_epochs(groups.frames_by_epoch, target["ra"], target["dec"])
+    except ValueError as exc:
+        raise APIError(422, "insufficient_data", str(exc)) from exc
+    warnings = list(product.metadata["warnings"]) + list(fit.warnings)
+    if fit.reduced_chi2 > 1 and not fit.uncertainties_inflated:
+        raise RuntimeError("Motion module returned unscaled errors for reduced chi-squared > 1")
+    if fit.uncertainties_inflated:
+        warnings.append("Fit uncertainties were inflated because reduced chi-squared exceeds 1.")
+    if not math.isfinite(fit.reduced_chi2):
+        warnings.append("Reduced chi-squared is undefined: no residual degrees of freedom.")
+    benchmark = dict(literature_pm_arcsec_per_yr=None, literature_parallax_arcsec=None,
+                     verdict=None, citation=None)
+    def canonical(name: str) -> str:
+        return coords._OFFLINE_ALIASES.get(name.strip().lower(), name.strip()).casefold()
+    match = None
+    if selection.position.target:
+        if benchmarks_path.exists():
+            match = next((row for row in load_benchmarks(benchmarks_path)
+                          if canonical(row.name) == canonical(selection.position.target)), None)
+        else:
+            warnings.append("Benchmark CSV unavailable; no literature comparison was performed.")
+    if match is not None:
+        if not match.citation.strip():
+            raise RuntimeError("Benchmark literature values require a citation")
+        benchmark.update(literature_pm_arcsec_per_yr=match.pm_total_arcsec_yr,
+                         literature_parallax_arcsec=match.parallax_arcsec, citation=match.citation)
+        if not product.metadata["synthetic"]:
+            verdict, _ = evaluate_criterion(match, fit)
+            benchmark["verdict"] = verdict
+            if verdict == "DISAGREE":
+                warnings.append(investigate_systematics(match, fit, product.aligned, verdict))
+                warnings.append("Catalogue disagreement is unresolved; check WCS, chromatic centroids, "
+                                "binary photocentre, parallax and saturated/masked pixels. No tuning was applied.")
+        else:
+            warnings.append("Synthetic motion is not compared with literature; benchmark verdict is unset.")
+    epochs = []
+    height, width = product.metadata["image_shape"]
+    for ep in fit.epochs:
+        matches = [g for g in groups if g["mjd_start"] - 1e-8 <= ep.mjd <= g["mjd_end"] + 1e-8]
+        if len(matches) != 1:
+            raise RuntimeError("Motion centroid cannot be associated with an observation epoch")
+        x, y = product.aligned[0].wcs.celestial.world_to_pixel_values(ep.ra, ep.dec)
+        sigma = max(float(ep.sigma_ra_arcsec), float(ep.sigma_dec_arcsec))
+        epochs.append(dict(epoch=matches[0]["epoch"], mjd=float(ep.mjd), ra=float(ep.ra),
+                           dec=float(ep.dec), sigma_arcsec=sigma, n_frames=int(ep.n_frames_used),
+                           x=float(x) + .5, y=height - .5 - float(y),
+                           radius_px=sigma / product.metadata["pixel_scale_arcsec"]))
+    if len(epochs) < 2:
+        raise APIError(422, "insufficient_data", "Too few accepted epoch centroids to measure motion.")
+    return dict(epochs=epochs, fit=dict(
+        pm_arcsec_per_yr=float(fit.pm_total_arcsec_yr), pm_sigma=float(fit.sigma_pm_total_arcsec_yr),
+        position_angle_deg=float(fit.pa_deg), pa_sigma=float(fit.sigma_pa_deg),
+        parallax_arcsec=fit.parallax_arcsec, parallax_sigma=fit.sigma_parallax_arcsec,
+        chi2_reduced=float(fit.reduced_chi2) if math.isfinite(fit.reduced_chi2) else None,
+        n_epochs=int(fit.n_epochs), significance=float(fit.motion_significance),
+        uncertainty_scaled=bool(fit.uncertainties_inflated)), benchmark=benchmark,
+        warnings=list(dict.fromkeys(warnings)), synthetic=product.metadata["synthetic"],
+        image_shape=[height, width])
+
+
+def save_motion_result(body: dict[str, Any], product: Products, selection: Selection,
+                       mode: str, results_root: Path, benchmarks_path: Path) -> None:
+    """Atomically save computed results and a rerunnable HTTP command with provenance."""
+    query = {"target": selection.position.target} if selection.position.target else {
+        "ra": selection.position.ra, "dec": selection.position.dec}
+    query.update(fov=product.metadata["fov_arcsec"], detector=product.metadata["detector"],
+                 wmin=product.metadata["wavelength_window_um"][0],
+                 wmax=product.metadata["wavelength_window_um"][1])
+    route = "/api/motion?" + urlencode(query)
+    provenance = dict(data_mode=mode, request=route,
+                      frames=[dict(uri=f.uri, mjd=f.mjd, wavelength_um=f.wavelength, version=f.version)
+                              for f in product.aligned],
+                      benchmarks_sha256=hashlib.sha256(benchmarks_path.read_bytes()).hexdigest()
+                      if benchmarks_path.exists() else None)
+    key = hashlib.sha256(json.dumps(provenance, sort_keys=True).encode()).hexdigest()[:20]
+    filename = f"motion-{key}.json"
+    provenance["command"] = f'curl.exe --fail "http://127.0.0.1:8000{route}" --output "results/{filename}"'
+    provenance["instructions"] = "Run the server in the recorded data mode with the same data/cache and code."
+    body["provenance"] = provenance
+    results_root.mkdir(parents=True, exist_ok=True)
+    path = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=results_root,
+                                         suffix=".tmp", delete=False) as handle:
+            path = Path(handle.name)
+            json.dump(body, handle, allow_nan=False, indent=2)
+        os.replace(path, results_root / filename)
+    finally:
+        if path is not None:
+            path.unlink(missing_ok=True)
+
+
 def create_app(
     *,
     mode: str | None = None,
@@ -540,6 +650,8 @@ def create_app(
     request_timeout: float | None = None,
     irsa_concurrency: int | None = None,
     irsa_queue_timeout: float | None = None,
+    results_root: str | Path | None = None,
+    benchmarks_path: str | Path | None = None,
 ) -> FastAPI:
     """Create an isolated application, freezing data mode and concurrency policy at startup."""
     application = FastAPI(title="ShroudX", docs_url=None, redoc_url=None, openapi_url=None)
@@ -573,6 +685,8 @@ def create_app(
     application.state.products = cache
     application.state.data_mode = data_mode
     application.state.cache_root = root
+    motion_results = Path(results_root) if results_root is not None else ROOT / "results"
+    benchmark_file = Path(benchmarks_path) if benchmarks_path is not None else ROOT / "data" / "benchmarks.csv"
     application.state.request_timeout = timeout_sec
     application.state.irsa_concurrency = max_irsa
     application.state.irsa_semaphore = irsa_semaphore
@@ -670,6 +784,14 @@ def create_app(
             body["warnings"] = list(dict.fromkeys(body["warnings"] + list(diff.warnings)))
         if hit and body["data_source"] == "archive":
             body["data_source"] = "cache"
+        return json_response(body)
+
+    @application.get("/api/motion")
+    def motion_endpoint(request: Request):
+        selection, _ = parse_selection(request)
+        product, _ = products(selection)
+        body = motion_result(product, selection, benchmark_file)
+        save_motion_result(body, product, selection, data_mode, motion_results, benchmark_file)
         return json_response(body)
 
     @application.get("/api/image.png")
