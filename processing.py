@@ -1162,3 +1162,19 @@ def render_diff_png(
     buf = io.BytesIO()
     Image.fromarray(u8, mode="L").save(buf, format="PNG")
     return buf.getvalue()
+
+
+def render_stack_png(
+    stack: StackResult,
+    stretch: StretchParams | Mapping[str, Any] | tuple[float, float] | None,
+) -> bytes:
+    """Fill missing pixels for display using the same local median as clean_frame.
+
+    Only the PNG display copy is filled. Scientific image, variance and counts
+    remain unchanged; filled pixels do not become measured flux. Valid pixels
+    keep the original shared stretch. Entirely invalid displays use the same
+    zero fallback as clean_frame, without manufacturing scientific values.
+    """
+    missing = ~np.isfinite(stack.image) | (stack.n_frames == 0)
+    display = _inpaint_bad_pixels(stack.image, missing, inpaint_size=5, fallback=0.0)
+    return render_png(display, stretch)

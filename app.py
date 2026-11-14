@@ -270,7 +270,8 @@ def _will_query_irsa(
     if data_mode != "auto":
         return False
     try:
-        return data._find_cached_bucket(cache_root, ra, dec, fov) is None
+        hit = data._find_cached_bucket(cache_root, ra, dec, fov)
+        return hit is None or data._read_incomplete_marker(hit[0]) > 0
     except Exception:
         return True
 
@@ -404,12 +405,14 @@ def fetch_selection_frames(
         fetch_fov = max(float(fov), min(float(bucket), rotated))
 
     def _fetch() -> tuple[Any, ...]:
-        return data.get_frames(
+        loader = data.get_detector_frames if pad_for_alignment and data_mode != 'synthetic' else data.get_frames
+        return loader(
             resolved["ra"],
             resolved["dec"],
             fetch_fov,
             mode=data_mode,
             cache_root=cache_root,
+            **({'detector': selection.detector} if loader is data.get_detector_frames else {}),
         )
 
     if needs_irsa and irsa_semaphore is not None:
@@ -480,7 +483,17 @@ def build_products(
     epochs = processing.split_epochs(aligned)
     stretch = processing.compute_stretch(aligned)
     stack = processing.stack_frames(aligned)
+    missing = ~np.isfinite(stack.image) | (stack.n_frames == 0)
+    x, y = aligned[0].wcs.celestial.world_to_pixel_values(resolved['ra'], resolved['dec'])
+    x, y = int(round(float(x))), int(round(float(y)))
+    target_missing = not (0 <= y < missing.shape[0] and 0 <= x < missing.shape[1]) or bool(missing[y, x])
+    stack_quality = dict(missing_pixels=int(missing.sum()), target_position_missing=target_missing,
+                         unreliable_exposures=any(f.unreliable is not None and np.any(f.unreliable) for f in aligned))
     warnings = list(resolved["warnings"]) + list(grouped.warnings)
+    warnings.extend(dict.fromkeys(f.meta['detector_selection_warning'] for f in frames
+                                 if (f.meta or {}).get('detector_selection_warning')))
+    if any((f.meta or {}).get('discovery_service') == 'SIA' for f in frames):
+        warnings.append('Images discovered through IRSA SIA (current DR1/QR3 collections); the newest TAP ingestion may not appear for approximately one day.')
     failed = max(int((f.meta or {}).get("failed_downloads", 0)) for f in frames)
     if failed:
         warnings.append(f"{failed} cutout downloads failed; this sequence may be incomplete.")
@@ -534,12 +547,13 @@ def build_products(
         ],
         "epochs": [dict(ep) for ep in epochs],
         "stretch": dict(stretch),
+        "stack_quality": stack_quality,
         "warnings": list(dict.fromkeys(warnings)),
     }
     return Products(
         metadata,
         tuple(processing.render_png(f, stretch) for f in aligned),
-        processing.render_png(stack.image, stretch),
+        processing.render_stack_png(stack, stretch),
         tuple(aligned),
     )
 
@@ -874,6 +888,14 @@ def create_app(
         pair = difference_request(request) if view == "diff" else None
         product, hit = products(selection)
         body = copy.deepcopy(product.metadata)
+        if view == "stack":
+            quality = body['stack_quality']
+            if quality['missing_pixels']:
+                body['warnings'].append('Missing stack pixels are filled from nearby valid pixels for display only, as in Blink. Filled brightness is an estimate, not a measurement.')
+            if quality['target_position_missing']:
+                body['warnings'].append('No valid stack measurement exists at the requested target position. Masked or invalid core data cannot be recovered from this selection.')
+            if quality['unreliable_exposures']:
+                body['warnings'].append('Some exposures contain saturated or nonlinear pixels; brightness in affected regions is unreliable.')
         if view == "diff":
             diff = difference_product(product, pair)
             difference_limit(diff.diff)

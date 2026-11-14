@@ -57,6 +57,12 @@ def create_practice_app(cache_root: Path, mode: str):
     loader = importlib.import_module(package_name + ".data")
     loader.CACHE_DIR = cache_root
     loader.mode = lambda: "mock" if mode == "synthetic" else mode
+    import data as current_data
+    def all_band_frames(ra,dec,fov,detector=None):
+        if detector is not None:
+            return current_data.get_detector_frames(ra,dec,fov,detector=detector,mode=mode,cache_root=cache_root)
+        return current_data.get_frames(ra,dec,fov,mode=mode,cache_root=cache_root)
+    loader.all_band_frames = all_band_frames
     hashed_folder = loader._cache_dir
 
     def imported_folder(ra: float, dec: float, size: float) -> Path:
@@ -69,6 +75,11 @@ def create_practice_app(cache_root: Path, mode: str):
             if match:
                 centre = SkyCoord(float(match[1]), float(match[2]), unit="deg")
                 if centre.separation(SkyCoord(ra, dec, unit="deg")).arcsec < 30:
+                    matches.append(path)
+        if not matches:
+            for path in cache_root.glob(f'detector-*/ra*_dec*_s{int(size)}'):
+                match = re.fullmatch(r"ra([0-9.]+)_dec([+-][0-9.]+)_s[0-9]+", path.name)
+                if match and SkyCoord(float(match[1]),float(match[2]),unit='deg').separation(SkyCoord(ra,dec,unit='deg')).arcsec < 30:
                     matches.append(path)
         return matches[0] if len(matches) == 1 else exact
 
@@ -106,7 +117,7 @@ class FrontendCompatibility:
         self.app, self.cache_root, self.mode = app, cache_root, mode
         self.practice = None
 
-    async def core_blink(self, scope, receive, send):
+    async def core_image_view(self, scope, receive, send):
         """Reuse the HTML viewer's exact selection, alignment and cached PNG bytes."""
         messages = []
         async def capture(message):
@@ -137,6 +148,18 @@ class FrontendCompatibility:
                                     'width_arcsec': meta['image_shape'][1] * meta['pixel_scale_arcsec'],
                                     'height_arcsec': meta['image_shape'][0] * meta['pixel_scale_arcsec']}}
             await JSONResponse(adapted)(scope, receive, send)
+        elif start['status'] >= 400:
+            body = b''.join(m.get('body', b'') for m in messages if m['type'] == 'http.response.body')
+            try:
+                error = json.loads(body)
+                if 'error' in error:
+                    error['detail'] = error['error']['message']
+                    await JSONResponse(error, status_code=start['status'])(scope, receive, send)
+                    return
+            except (ValueError, KeyError, TypeError):
+                pass
+            for message in messages:
+                await send(message)
         else:
             for message in messages:
                 await send(message)
@@ -146,12 +169,13 @@ class FrontendCompatibility:
             await self.app(scope, receive, send)
             return
         query = parse_qs(scope.get('query_string', b'').decode())
-        # Default React blink must be byte-identical to the working HTML viewer.
-        if (scope['path'] in {'/api/meta', '/api/image.png'}
-                and query.get('mode', ['blink'])[0] == 'blink'
-                and query.get('clean', ['true'])[0].lower() == 'true'
-                and query.get('show_mask', ['false'])[0].lower() == 'false'):
-            await self.core_blink(scope, receive, send)
+        view = query.get('mode', ['blink'])[0]
+        # Stack always uses the core coadd; Difference remains on the original path.
+        default_blink = (view == 'blink'
+                         and query.get('clean', ['true'])[0].lower() == 'true'
+                         and query.get('show_mask', ['false'])[0].lower() == 'false')
+        if scope['path'] in {'/api/meta', '/api/image.png'} and (view == 'stack' or default_blink):
+            await self.core_image_view(scope, receive, send)
             return
         if self.practice is None:
             self.practice = create_practice_app(self.cache_root, self.mode)

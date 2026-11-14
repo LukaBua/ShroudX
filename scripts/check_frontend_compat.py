@@ -36,7 +36,7 @@ def main() -> int:
                 assert response.status_code == 200, response.text
                 meta = response.json()
                 assert not meta['mock'] and not meta['synthetic'] and meta['n_frames'] > 0
-                row.update(frames=meta['n_frames'], epochs=meta['n_epochs'], data_versions=meta['data_versions'])
+                row.update(frames=meta['n_frames'], epochs=meta['n_epochs'], data_versions=meta.get('data_versions', sorted({f['version'] for f in meta['frames']})))
                 row['images'] = {}
                 for mode in ('blink', 'stack', 'diff'):
                     response = client.get('/api/image.png', params={**query, 'mode': mode, 'index': 0,
@@ -44,7 +44,8 @@ def main() -> int:
                     assert response.status_code == 200, response.text
                     with Image.open(io.BytesIO(response.content)) as image:
                         image.load()
-                        assert image.format == 'PNG' and image.size == (512, 512)
+                        assert image.format == 'PNG'
+                        assert image.size == ((512, 512) if mode == 'diff' else tuple(reversed(meta['frame_shape'])))
                         row['images'][mode] = dict(size=list(image.size), bytes=len(response.content))
                 row['resources'] = {}
                 for endpoint in ('pixel', 'motion', 'spectrum', 'catalog', 'detections'):

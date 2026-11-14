@@ -87,3 +87,29 @@ def test_react_blink_is_byte_identical_to_legacy_pipeline(tmp_path):
             displayed = client.get('/api/image.png', params={**query, 'index': frame['index'], 'clean': True, 'smooth': True})
             assert displayed.status_code == plain.status_code == 200
             assert displayed.content == plain.content
+
+
+def test_stack_uses_current_products_and_difference_keeps_original_renderer(tmp_path):
+    import io
+    from PIL import Image
+    application = app.create_app(mode='synthetic', cache_root=tmp_path / 'cache')
+    with TestClient(application) as client:
+        query = dict(ra=133.79, dec=-7.245, fov=120, mode='stack')
+        core_meta = client.get('/api/meta', params=query).json()
+        core_png = client.get('/api/image.png', params=query)
+        assert core_png.status_code == 200
+        for clean, mask in ((True, False), (False, False), (True, True)):
+            react_query = {**query, 'clean': clean, 'show_mask': mask, 'smooth': True}
+            react = client.get('/api/meta', params=react_query).json()
+            assert react['frame_shape'] == core_meta['image_shape']
+            assert react['target'] == core_meta['target']
+            assert [(f['index'],f['mjd'],f['version']) for f in react['frames']] == [
+                (f['index'],f['mjd'],f['version']) for f in core_meta['frames']]
+            displayed = client.get('/api/image.png', params=react_query)
+            assert displayed.status_code == 200 and displayed.content == core_png.content
+        difference = client.get('/api/image.png', params={**query, 'mode': 'diff', 'clean': True})
+        assert difference.status_code == 200
+        assert difference.headers['x-shroudx-frontend'] == 'spaceapps'
+        assert Image.open(io.BytesIO(difference.content)).size == (512,512)
+        diff_meta = client.get('/api/meta', params={**query, 'mode': 'diff', 'clean': True})
+        assert diff_meta.status_code == 200 and diff_meta.headers['x-shroudx-frontend'] == 'spaceapps'

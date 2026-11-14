@@ -10,6 +10,8 @@ import json
 import os
 import re
 import shutil
+import ssl
+import certifi
 import sys
 import tempfile
 import time
@@ -19,6 +21,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode, urlsplit
+from xml.etree import ElementTree
+from astropy.table import Table
 
 import numpy as np
 from astropy.coordinates import SkyCoord
@@ -96,6 +101,7 @@ class ImageRecord:
     uri: str
     mjd: float
     bandpass: str
+    discovery_service: str = "TAP"
 
     def __iter__(self):
         """Allow tuple-unpacking as ``uri, mjd, bandpass``."""
@@ -438,31 +444,64 @@ class warnings_suppressed:
         self._ctx.__exit__(exc_type, exc_val, exc_tb)
 
 
+def query_sia_images(ra: float, dec: float) -> list[ImageRecord]:
+    """Discover current SPHEREx MEFs through IRSA's documented SIA2 service.
+
+    Sources: caltech-ipac.github.io/irsa-tutorials/spherex-intro/ and
+    caltech-ipac.github.io/spherex-archive-documentation/spherex-data-access/.
+    SIA can lag TAP ingestion by approximately one day. Never retrieve the
+    full access_url here: only pass its archive path to the cutout downloader.
+    """
+    parameters = [('POS', f'CIRCLE {ra:.8f} {dec:.8f} 0.0002777778')]
+    parameters += [('COLLECTION', name) for name in
+                   ('spherex_dr1', 'spherex_dr1_deep', 'spherex_qr3', 'spherex_qr3_deep')]
+    url = IRSA_BASE_URL + '/SIA?' + urlencode(parameters)
+    try:
+        payload = _default_fetch_bytes(url, timeout=30.0)
+        document = ElementTree.fromstring(payload)
+        for element in document.iter():
+            if element.tag.rsplit('}', 1)[-1] == 'INFO' and element.attrib.get('name') == 'QUERY_STATUS':
+                if element.attrib.get('value') in {'ERROR', 'OVERFLOW'}:
+                    raise ValueError('SIA query failed or was truncated: ' + (element.text or ''))
+        table = Table.read(io.BytesIO(payload), format='votable', use_names_over_ids=True)
+        required = {'access_url', 't_min', 'energy_bandpassname'}
+        if not required.issubset(table.colnames):
+            raise ValueError('SIA response is missing required image metadata columns')
+        records = {}
+        for row in table:
+            if str(row['dataproduct_type']) != 'image' or int(row['calib_level']) != 2:
+                continue
+            access = urlsplit(str(row['access_url']))
+            if access.scheme != 'https' or access.hostname != 'irsa.ipac.caltech.edu' or not access.path.startswith('/ibe/data/spherex/'):
+                raise ValueError('SIA returned an unsupported archive URL')
+            mjd = float(row['t_min'])
+            if not np.isfinite(mjd):
+                raise ValueError('SIA returned a non-finite observation time')
+            uri = access.path.lstrip('/')
+            records[uri] = ImageRecord(uri, mjd, str(row['energy_bandpassname']), 'SIA')
+    except Exception as exc:
+        raise ArchiveUnreachableError(f'IRSA SIA image discovery failed: {exc}') from exc
+    if not records:
+        raise NoCoverageError('no SPHEREx coverage at this position in the current SIA collections')
+    return sorted(records.values(), key=lambda record: (record.mjd, record.uri))
+
+
 def query_images(
     ra: float,
     dec: float,
     *,
     tap_query: Callable[..., Any] | None = None,
 ) -> list[ImageRecord]:
-    """Query IRSA TAP for SPHEREx Level-2 artifacts covering ``(ra, dec)``.
+    """Discover current SPHEREx images with a bounded SIA2 request.
 
-    Executes an ADQL join of ``spherex.artifact`` and ``spherex.plane`` on ``planeid``
-    filtered by ``CONTAINS(POINT('ICRS', ra, dec), p.poly)``, ordered by
-    ``time_bounds_lower`` ascending.
-
-    Args:
-        ra: Right Ascension in decimal degrees (ICRS).
-        dec: Declination in decimal degrees (ICRS).
-        tap_query: Optional callable replacement for ``Irsa.query_tap`` (used in tests).
-
-    Returns:
-        List of ``ImageRecord(uri, mjd, bandpass)`` objects sorted by MJD.
-
-    Raises:
-        NoCoverageError: When the archive returns zero matching rows.
-        ArchiveUnreachableError: When the IRSA TAP query fails due to network/service error.
+    Normal calls use query_sia_images. An explicitly supplied tap_query retains
+    the ADQL plane/artifact interface for tests or callers providing their own
+    TAP transport. Both paths return real archive URIs sorted by observation time.
+    Empty coverage raises NoCoverageError; service errors raise ArchiveUnreachableError.
     """
     ra_norm, dec_norm = _normalize_coords(ra, dec)
+    if tap_query is None:
+        return query_sia_images(ra_norm, dec_norm)
     adql = (
         "SELECT a.uri AS uri, p.time_bounds_lower AS mjd, p.energy_bandpassname AS bandpass "
         "FROM spherex.artifact a "
@@ -472,18 +511,7 @@ def query_images(
     )
 
     try:
-        if tap_query is not None:
-            result = tap_query(adql)
-        else:
-            try:
-                from astroquery.ipac.irsa import Irsa
-
-                result = Irsa.query_tap(adql)
-            except ImportError:
-                import pyvo
-
-                service = pyvo.dal.TAPService(IRSA_TAP_URL)
-                result = service.search(adql)
+        result = tap_query(adql)
         table = result.to_table() if hasattr(result, "to_table") else result
     except NoCoverageError:
         raise
@@ -583,7 +611,8 @@ def _filter_kept_hdus(hdul: fits.HDUList) -> fits.HDUList:
 def _default_fetch_bytes(url: str, timeout: float = 30.0) -> bytes:
     """Download raw bytes from ``url`` via urllib."""
     req = Request(url, headers={"User-Agent": "ShroudX-SPHEREx-Viewer/0.1"})
-    with urlopen(req, timeout=timeout) as resp:  # noqa: S310
+    context = ssl.create_default_context(cafile=certifi.where())
+    with urlopen(req, timeout=timeout, context=context) as resp:  # noqa: S310
         return resp.read()
 
 
@@ -672,6 +701,8 @@ def download_cutout(
                         pri_hdr["BANDPASS"] = str(metadata["bandpass"])
                     if "uri" in metadata and metadata["uri"]:
                         pri_hdr["SPHXURI"] = str(metadata["uri"])
+                    if metadata.get("discovery_service"):
+                        pri_hdr["SPHXSVC"] = str(metadata["discovery_service"])
 
                 is_gz = dest_path.name.endswith(".gz")
                 tmp_suffix = ".tmp.fits.gz" if is_gz else ".tmp.fits"
@@ -751,6 +782,7 @@ def download_cutouts_parallel(
                     "mjd": record.mjd,
                     "bandpass": record.bandpass,
                     "uri": record.uri,
+                    "discovery_service": record.discovery_service,
                 },
             ): idx
             for idx, (url, dest_path, record) in enumerate(items)
@@ -1295,6 +1327,7 @@ def frame_from_hdul(
     version = parse_version(uri, header=img_hdu.header) or parse_version(uri, header=pri_hdr)
 
     meta: dict[str, Any] = {
+        "discovery_service": str(hdul["PRIMARY"].header.get("SPHXSVC", "unknown")),
         "ra": float(ra),
         "dec": float(dec),
     }
@@ -1556,6 +1589,134 @@ def _clone_frames(
     return tuple(cloned)
 
 
+def get_detector_frames(ra: float, dec: float, fov: float = 120.0, *,
+                        detector: int | None = None, mode: str | None = None,
+                        cache_root: str | Path = 'cache') -> tuple[Frame, ...]:
+    """Fetch a requested detector first; automatic cold selection is coverage-first.
+
+    Automatic ranking: most exposures, then most >30-day-separated epochs, then
+    lowest detector number. Metadata cannot predict saturation. Try the next
+    ranked detector only if no downloaded frame has a usable pixel. Do not treat
+    an unavailable service as evidence that a detector has no usable data.
+    Detector subsets live in separate namespaces so they never masquerade as an
+    all-band cache. Full existing caches are reused without any new download.
+    """
+    chosen_mode = get_data_mode(mode)
+    if detector is not None and (isinstance(detector,bool) or detector not in range(1,7)):
+        raise ValueError('detector must be an integer from 1 to 6')
+    root = Path(cache_root)
+    def subset(frames):
+        return tuple(f for f in frames if detector is None or f.detector == detector)
+    if chosen_mode == 'synthetic':
+        frames = subset(get_frames(ra,dec,fov,mode='synthetic',cache_root=root))
+        if not frames:
+            raise NoCoverageError('Synthetic sequence has no frames in the selected detector.')
+        return frames
+    choice_path = root / ('selection-' + cache_key_for(ra,dec,select_size_bucket(fov)) + '.json')
+    if chosen_mode != 'live':
+        cached_det = detector
+        cached_warning = None
+        if cached_det is None and chosen_mode == 'auto' and choice_path.is_file():
+            try:
+                choice = json.loads(choice_path.read_text(encoding='utf-8'))
+                if time.time() - choice['recorded_at'] < 3600:
+                    cached_det = int(choice['detector'])
+                    cached_warning = choice['warning']
+            except (ValueError,KeyError,TypeError,OSError):
+                pass
+        if cached_det is not None:
+            scoped = root / f'detector-{cached_det}'
+            try:
+                hit = _find_cached_bucket(scoped,ra,dec,fov)
+                if hit is not None and (chosen_mode == 'cache' or not _read_incomplete_marker(hit[0])):
+                    frames = get_frames(ra,dec,fov,mode='cache',cache_root=scoped)
+                    return tuple(f.copy_with(meta={**(f.meta or {}), **({'detector_selection_warning': cached_warning} if cached_warning else {})}) for f in frames)
+            except NotCachedError:
+                pass
+    if chosen_mode != 'live':
+        try:
+            full = get_frames(ra,dec,fov,mode='cache' if chosen_mode != 'synthetic' else 'synthetic',cache_root=root)
+            # Incomplete all-band caches must not trigger an all-band retry.
+            hit = _find_cached_bucket(root,ra,dec,fov) if chosen_mode == 'auto' else None
+            if not hit or not _read_incomplete_marker(hit[0]):
+                result = subset(full)
+                if result:
+                    return result
+        except NotCachedError:
+            pass
+    if chosen_mode == 'cache':
+        available = []
+        for det in ([detector] if detector else range(1,7)):
+            try:
+                available.extend(get_frames(ra,dec,fov,mode='cache',cache_root=root / f'detector-{det}'))
+            except NotCachedError:
+                pass
+        if not available:
+            raise NotCachedError('No cached frames for the requested detector.')
+        return tuple(sorted(available,key=lambda f:f.mjd))
+    records = query_images(ra,dec)
+    full_hit = _find_cached_bucket(root,ra,dec,fov)
+    by_detector = {}
+    for record in records:
+        match = re.fullmatch(r'SPHEREx-D([1-6])', record.bandpass)
+        if not match:
+            raise ArchiveUnreachableError('Archive metadata lacks a recognised detector bandpass.')
+        by_detector.setdefault(int(match[1]),[]).append(record)
+    def score(det):
+        times = sorted(r.mjd for r in by_detector[det])
+        epochs = 1 + sum(b-a>30 for a,b in zip(times,times[1:]))
+        return (-len(times),-epochs,det)
+    ranking = [detector] if detector is not None else sorted(by_detector,key=score)
+    tried = []
+    for det in ranking:
+        selected = by_detector.get(det,[])
+        if not selected:
+            continue
+        scoped = root / f'detector-{det}'
+        if full_hit is not None and chosen_mode != 'live':
+            # Reuse valid original cutouts by URI, even when a different detector
+            # made the all-band cache incomplete. Never download them twice.
+            source_dir, source_bucket, source_rows = full_hit
+            existing = {row[3]: row[0] for row in source_rows}
+            folder = scoped / cache_key_for(ra,dec,source_bucket)
+            copied_rows = []
+            for index, record in enumerate(selected,1):
+                if record.uri not in existing:
+                    continue
+                original = _resolve_cached_fits_path(source_dir,existing[record.uri])
+                if original is None or not original.name.endswith('.gz'):
+                    continue
+                with fits.open(original,memmap=False) as hdul:
+                    stored_uri = hdul['PRIMARY'].header.get('SPHXURI')
+                    if stored_uri and stored_uri != record.uri:
+                        continue
+                folder.mkdir(parents=True,exist_ok=True)
+                name = f'{index:04d}.fits.gz'
+                destination = folder / name
+                if not destination.exists():
+                    shutil.copy2(original,destination)
+                copied_rows.append((name,record.mjd,record.bandpass,record.uri))
+            if copied_rows:
+                _write_index_csv(folder,copied_rows)
+                _write_incomplete_marker(folder,len(selected)-len(copied_rows),len(selected))
+        frames = get_frames(ra,dec,fov,mode=chosen_mode,cache_root=scoped,image_records=selected)
+        usable = any(np.any((~f.mask) & np.isfinite(f.image)) for f in frames)
+        if detector is not None or usable:
+            warning = (f'Automatic detector selection is coverage-first: D{det}. '
+                       'Ranking uses archive exposure/epoch counts; it does not guarantee an unsaturated target core.')
+            if tried:
+                warning += f' Detectors {tried} had no usable pixels; selected the next ranked detector.'
+            if detector is None:
+                root.mkdir(parents=True,exist_ok=True)
+                # Last automatic coverage choice is reused for one hour only when
+                # its detector cache is complete; playback never changes detectors.
+                choice_path.write_text(json.dumps(dict(detector=det, warning=warning,
+                    recorded_at=time.time())),encoding='utf-8')
+            return tuple(f.copy_with(meta={**(f.meta or {}), **({'detector_selection_warning': warning} if detector is None else {})}) for f in frames)
+        tried.append(det)
+    raise NoCoverageError('No usable frames for the requested detector selection.')
+
+
 def get_frames(
     ra: float,
     dec: float,
@@ -1571,6 +1732,7 @@ def get_frames(
     sleep_fn: Callable[[float], None] = time.sleep,
     progress_callback: Callable[[int, int, str, bool], None] | None = None,
     use_memory_cache: bool = True,
+    image_records: Sequence[ImageRecord] | None = None,
 ) -> tuple[Frame, ...]:
     """Return a tuple of SPHEREx ``Frame`` objects covering ``(ra, dec)`` sorted by MJD.
 
@@ -1669,6 +1831,7 @@ def get_frames(
             fetcher=fetcher,
             sleep_fn=sleep_fn,
             progress_callback=progress_callback,
+            **({"image_records": image_records} if image_records is not None else {}),
         )
     except DataError:
         if disk_frames and disk_missing:
@@ -1697,9 +1860,10 @@ def _fetch_live_frames(
     fetcher: Callable[[str], bytes | fits.HDUList] | None,
     sleep_fn: Callable[[float], None],
     progress_callback: Callable[[int, int, str, bool], None] | None,
+    image_records: Sequence[ImageRecord] | None = None,
 ) -> tuple[Frame, ...]:
     """Query IRSA, download missing cutouts into the disk cache, and load them as Frames."""
-    records = query_images(ra_norm, dec_norm, tap_query=tap_query)
+    records = list(image_records) if image_records is not None else query_images(ra_norm, dec_norm, tap_query=tap_query)
     key = cache_key_for(ra_norm, dec_norm, bucket_arcsec)
     target_cache_dir = croot / key
     target_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -1711,6 +1875,9 @@ def _fetch_live_frames(
         url = build_cutout_url(rec.uri, ra_norm, dec_norm, bucket_arcsec)
         download_jobs.append((url, dest_path, rec))
 
+    # Mark the collection incomplete before work starts. A killed/expired request
+    # must never turn its completed prefix into an apparently complete cache.
+    _write_incomplete_marker(target_cache_dir, len(download_jobs), len(download_jobs))
     succeeded, failed_uris = download_cutouts_parallel(
         download_jobs,
         max_workers=max_workers,

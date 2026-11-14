@@ -23,14 +23,15 @@ when built, and `/legacy` always serves the original HTML dashboard.
 
 The original fonts, styles and panels are preserved. The approved blink changes
 preload decoded PNG snapshots, pause on hidden tabs and clean up blob URLs.
-Default clean blink frames use exactly the same backend product as `/legacy`;
+Default clean Blink and all Stack frames use exactly the same backend products as `/legacy`;
 `frontend_compat/` adapts metadata for React and supports its original other modes.
-Raw/mask views and the original science panels remain on the practice protocol;
+Raw/mask Blink views, Difference mode and the original science panels remain on the practice protocol;
 the incoming motion, Gaia, flicker and mover library implementations are retained.
 The restored `/api/tracking` and `/api/spectrum` endpoints remain available to
 normal API clients; their measurement results include provenance under `results/`.
 
 Verify real cached blink parity with `python scripts/verify_blink_parity.py`.
+Verify Stack parity with `python scripts/verify_stack_parity.py`.
 Verify preserved design files with `python scripts/verify_frontend_copy.py`.
 The design check uses `tests/frontend_baseline.json`, recovered from the original
 import verification report; it does not need the removed practice checkout.
@@ -287,8 +288,56 @@ Developed during the NASA Space Apps 2026 hackathon:
 
 Runtime `frontend-compat-*`, `motion-*`, `tracking-*` and `spectrum-*` JSON files
 are ignored locally. Existing tracked reports remain tracked. The named
-`blink-parity.json`, `frontend-copy-verification.json`, `frontend-compat-api-check.json`
+`blink-parity.json`, `stack-parity.json`, `frontend-copy-verification.json`, `frontend-compat-api-check.json`
 and named WISE0855 example reports remain available for deliberate review and
 commit. Reports are not deleted. Preserve the checked-in frontend baseline;
 change it only after reviewing an intentional design change, not to silence a
 verification failure.
+
+### Missing pixels in Stack images
+
+Stack fills missing pixels for display using the same local-neighbour median
+method as Blink. Only the PNG copy is filled. Original numerical stack NaNs,
+variances and contributor counts remain unchanged. The shared display stretch
+is preserved, and metadata warns that filled brightness is an estimate rather
+than measured flux. `stack_quality` still identifies missing target positions.
+This cannot recover saturated or invalid core measurements. Run
+`python scripts/check_stack_quality.py` to reproduce the cached-target diagnosis.
+
+## Live auto-mode discovery
+
+Normal image discovery now uses the documented IRSA SIA2 DR1/QR3 wide and deep
+collections. The TAP queue stalled even on a minimal data query during live
+verification; SIA returned Vega coverage. SIA can lag the newest TAP ingestion by
+approximately one day, which is disclosed in API warnings. Only cutout URLs are
+downloaded; full MEFs are never requested. Source service is saved in SPHXSVC
+headers and frame metadata. HTTPS uses the certifi CA bundle with hostname and
+certificate verification enabled (the local urllib default trust store rejected
+the IRSA certificate chain).
+
+A cold field can require hundreds of cutouts. For the local auto-mode server use
+`SPHX_MODE=auto` and `SPHX_REQUEST_TIMEOUT=1800`; this is a bounded first-load
+budget, not a latency guarantee. Existing cached fields still use the disk cache.
+Interrupted downloads retain an incomplete marker and are resumed, never silently
+presented as complete. No synthetic fallback is enabled. Run
+`python scripts/verify_auto_mode.py` for a fresh real Vega end-to-end test; the
+report is `results/auto-mode-verification.json`. That check must pass before
+switching the running website from cache mode.
+
+Service references: https://caltech-ipac.github.io/irsa-tutorials/spherex-intro/
+and https://caltech-ipac.github.io/spherex-archive-documentation/spherex-data-access/.
+
+## Detector-first live images
+
+Blink/Stack image products request only the selected detector on an uncached
+field. Automatic cold selection ranks real archive metadata by exposure count,
+then epoch coverage, then detector number. It downloads that detector first and
+tries another only when no frame contains usable pixels; warnings disclose the
+choice and any fallback. This does not establish an unsaturated target core.
+The narrow wavelength window is still chosen after reading per-pixel spectral WCS.
+
+Detector-only downloads live in `cache/detector-N/` and cannot be mistaken for
+complete all-band coverage. Existing full caches are reused. A completed detector
+cache can be read without network access; automatic coverage recommendations are
+reused for up to one hour. SED requests still retrieve all requested bands. No
+performance multiplier is claimed without measurement.

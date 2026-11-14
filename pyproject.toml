@@ -9,6 +9,7 @@ description = "SPHEREx time-series blink and stack viewer"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
+    "certifi",
     "numpy>=1.24.0",
     "scipy>=1.10.0",
     "astropy>=6.0.0",

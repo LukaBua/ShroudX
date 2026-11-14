@@ -1,0 +1,257 @@
+{
+  "status": "PASS",
+  "target": "Vega",
+  "cache_root": "C:\\Users\\Home\\Desktop\\ShroudX\\scratch\\auto-vega-04053c0cf3",
+  "initially_cached": false,
+  "request_timeout_seconds": 1800,
+  "reused_downloads": 172,
+  "command": "\"C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe\" scripts/verify_auto_mode.py",
+  "metadata_http_status": 200,
+  "n_selected_frames": 25,
+  "data_versions": [
+    27
+  ],
+  "warnings": [
+    "Resolved via online Sesame lookup (coordinates only; proper motion not automatically propagated). Verify field of view for fast-moving objects.",
+    "Images discovered through IRSA SIA (current DR1/QR3 collections); the newest TAP ingestion may not appear for approximately one day.",
+    "1 cutout downloads failed; this sequence may be incomplete.",
+    "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
+    "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence."
+  ],
+  "frames": [
+    {
+      "index": 0,
+      "mjd": 60921.744188,
+      "date": "2025-09-03",
+      "wavelength_um": 1.240166300709238,
+      "epoch": 0,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W36_1A/l2b-v27-2026-232/2/level2_2025W36_1A_0609_1D2_spx_l2b-v27-2026-232.fits"
+    },
+    {
+      "index": 1,
+      "mjd": 60921.745681,
+      "date": "2025-09-03",
+      "wavelength_um": 1.2698346590002212,
+      "epoch": 0,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W36_1A/l2b-v27-2026-232/2/level2_2025W36_1A_0609_2D2_spx_l2b-v27-2026-232.fits"
+    },
+    {
+      "index": 2,
+      "mjd": 60928.332315,
+      "date": "2025-09-10",
+      "wavelength_um": 1.2279892052197439,
+      "epoch": 0,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W37_1A/l2b-v27-2026-235/2/level2_2025W37_1A_0459_1D2_spx_l2b-v27-2026-235.fits"
+    },
+    {
+      "index": 3,
+      "mjd": 60928.333808,
+      "date": "2025-09-10",
+      "wavelength_um": 1.257303617074652,
+      "epoch": 0,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W37_1A/l2b-v27-2026-235/2/level2_2025W37_1A_0459_2D2_spx_l2b-v27-2026-235.fits"
+    },
+    {
+      "index": 4,
+      "mjd": 60928.3353,
+      "date": "2025-09-10",
+      "wavelength_um": 1.2870928465762292,
+      "epoch": 0,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W37_1A/l2b-v27-2026-235/2/level2_2025W37_1A_0459_3D2_spx_l2b-v27-2026-235.fits"
+    },
+    {
+      "index": 5,
+      "mjd": 60932.272738,
+      "date": "2025-09-14",
+      "wavelength_um": 1.1902222149846726,
+      "epoch": 0,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W37_2A/l2b-v27-2026-236/2/level2_2025W37_2A_0622_1D2_spx_l2b-v27-2026-236.fits"
+    },
+    {
+      "index": 6,
+      "mjd": 60932.274248,
+      "date": "2025-09-14",
+      "wavelength_um": 1.218815941680404,
+      "epoch": 0,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2025W37_2A/l2b-v27-2026-236/2/level2_2025W37_2A_0622_2D2_spx_l2b-v27-2026-236.fits"
+    },
+    {
+      "index": 7,
+      "mjd": 61125.037682,
+      "date": "2026-03-26",
+      "wavelength_um": 1.1955982253418593,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W13_1A/l2b-v27-2026-236/2/level2_2026W13_1A_0578_4D2_spx_l2b-v27-2026-236.fits"
+    },
+    {
+      "index": 8,
+      "mjd": 61125.984323,
+      "date": "2026-03-26",
+      "wavelength_um": 1.224314439010301,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W13_2A/l2b-v27-2026-237/2/level2_2026W13_2A_0101_1D2_spx_l2b-v27-2026-237.fits"
+    },
+    {
+      "index": 9,
+      "mjd": 61125.985815,
+      "date": "2026-03-26",
+      "wavelength_um": 1.2533616795898146,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W13_2A/l2b-v27-2026-237/2/level2_2026W13_2A_0101_2D2_spx_l2b-v27-2026-237.fits"
+    },
+    {
+      "index": 10,
+      "mjd": 61125.987307,
+      "date": "2026-03-26",
+      "wavelength_um": 1.2831674596532505,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W13_2A/l2b-v27-2026-237/2/level2_2026W13_2A_0101_3D2_spx_l2b-v27-2026-237.fits"
+    },
+    {
+      "index": 11,
+      "mjd": 61131.829501,
+      "date": "2026-04-01",
+      "wavelength_um": 1.1980400221859429,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W14_1A/l2b-v27-2026-238/2/level2_2026W14_1A_0554_4D2_spx_l2b-v27-2026-238.fits"
+    },
+    {
+      "index": 12,
+      "mjd": 61132.570796,
+      "date": "2026-04-02",
+      "wavelength_um": 1.2266068659726421,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W14_2A/l2b-v27-2026-238/2/level2_2026W14_2A_0017_1D2_spx_l2b-v27-2026-238.fits"
+    },
+    {
+      "index": 13,
+      "mjd": 61132.572289,
+      "date": "2026-04-02",
+      "wavelength_um": 1.2558558235815678,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W14_2A/l2b-v27-2026-238/2/level2_2026W14_2A_0017_2D2_spx_l2b-v27-2026-238.fits"
+    },
+    {
+      "index": 14,
+      "mjd": 61132.573781,
+      "date": "2026-04-02",
+      "wavelength_um": 1.2855742379609414,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W14_2A/l2b-v27-2026-238/2/level2_2026W14_2A_0017_3D2_spx_l2b-v27-2026-238.fits"
+    },
+    {
+      "index": 15,
+      "mjd": 61139.629408,
+      "date": "2026-04-09",
+      "wavelength_um": 1.255753821562265,
+      "epoch": 1,
+      "version": 27,
+      "uri": "ibe/data/spherex/dr1/level2/2026W15_2A/l2b-v27-2026-240/2/level2_2026W15_2A_0036_1D2_spx_l2b-v27-2026-240.fits"
+    },
+    {
+      "index": 16,
+      "mjd": 61289.121799,
+      "date": "2026-09-06",
+      "wavelength_um": 1.221076886063023,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W36_2A/l2b-v27-2026-254/2/level2_2026W36_2A_0723_1D2_spx_l2b-v27-2026-254.fits"
+    },
+    {
+      "index": 17,
+      "mjd": 61289.123291,
+      "date": "2026-09-06",
+      "wavelength_um": 1.2500827919091757,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W36_2A/l2b-v27-2026-254/2/level2_2026W36_2A_0723_2D2_spx_l2b-v27-2026-254.fits"
+    },
+    {
+      "index": 18,
+      "mjd": 61289.124783,
+      "date": "2026-09-06",
+      "wavelength_um": 1.2798380762200285,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W36_2A/l2b-v27-2026-254/2/level2_2026W36_2A_0723_3D2_spx_l2b-v27-2026-254.fits"
+    },
+    {
+      "index": 19,
+      "mjd": 61290.008944,
+      "date": "2026-09-07",
+      "wavelength_um": 1.190088358867889,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W37_1A/l2b-v27-2026-255/2/level2_2026W37_1A_0001_4D2_spx_l2b-v27-2026-255.fits"
+    },
+    {
+      "index": 20,
+      "mjd": 61293.941071,
+      "date": "2026-09-10",
+      "wavelength_um": 1.2173600231335588,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W37_2A/l2b-v27-2026-259/2/level2_2026W37_2A_0091_1D2_spx_l2b-v27-2026-259.fits"
+    },
+    {
+      "index": 21,
+      "mjd": 61293.942564,
+      "date": "2026-09-10",
+      "wavelength_um": 1.2462195566217513,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W37_2A/l2b-v27-2026-259/2/level2_2026W37_2A_0091_2D2_spx_l2b-v27-2026-259.fits"
+    },
+    {
+      "index": 22,
+      "mjd": 61293.944056,
+      "date": "2026-09-10",
+      "wavelength_um": 1.276059798331718,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W37_2A/l2b-v27-2026-259/2/level2_2026W37_2A_0091_3D2_spx_l2b-v27-2026-259.fits"
+    },
+    {
+      "index": 23,
+      "mjd": 61294.688318,
+      "date": "2026-09-11",
+      "wavelength_um": 1.2183245205721378,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W37_2A/l2b-v27-2026-259/2/level2_2026W37_2A_0250_1D2_spx_l2b-v27-2026-259.fits"
+    },
+    {
+      "index": 24,
+      "mjd": 61301.344255,
+      "date": "2026-09-18",
+      "wavelength_um": 1.2087436022976448,
+      "epoch": 2,
+      "version": 27,
+      "uri": "ibe/data/spherex/qr3/level2/2026W38_2A/l2b-v27-2026-264/2/level2_2026W38_2A_0177_1D2_spx_l2b-v27-2026-264.fits"
+    }
+  ],
+  "png_sha256": {
+    "blink": "34ff4a76d8ef83e5c036c8432426e81cd4cec3f608f61612f2d74ace288d256f",
+    "stack": "f326a7f97b9106a4fef4ce8dcceb2956e3b936afa16a4957621287fcc373e9ba"
+  },
+  "n_cached_frames": 464,
+  "offline_cache_reload": true,
+  "all_data_versions": [
+    27
+  ]
+}

@@ -295,7 +295,8 @@ def _cached_spectrum(
     data_mode: str,
 ) -> dict:
     try:
-        frames = data.get_frames(ra5, dec5, fov)
+        frames = (data.all_band_frames(ra5,dec5,fov,detector=detector) if hasattr(data,'all_band_frames')
+                  else data.get_frames(ra5,dec5,fov))
     except Exception as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not frames:

@@ -361,3 +361,33 @@ bytes, frame order, wavelength window and alignment are identical to the HTML
 viewer. These PNGs have native image dimensions, not the practice renderer's
 512px output size. React's short preset names map to canonical target names.
 Other practice modes and optional science panels retain their original protocol.
+
+### React Stack uses current coaddition
+
+React `mode=stack` metadata and PNG requests use the current core product,
+including selection, cleaning, north-up alignment, coaddition and shared stretch.
+Metadata is adapted to React's schema; PNG bytes are returned unchanged at native
+image dimensions. Short preset names are translated as for Blink. Stack display
+flags do not switch it back to the practice renderer (the original Stack ignored
+raw/mask options too). Difference and its epoch selection/rendering are unchanged.
+Run `python scripts/verify_stack_parity.py` for the real-cache comparison report.
+
+### Stack display-only filling
+
+Stack PNGs fill zero-contributor or non-finite pixels using the local-median
+inpainting method used by Blink cleaning. The shared stretch remains unchanged.
+Numerical coadds, variances, masks and contributor counts are preserved; metadata
+warnings and `stack_quality` identify the missing measurements. Filled display
+pixels are estimates, not recovered source brightness. No new UI option is added.
+
+### Detector-first image retrieval
+
+Core image products in auto/live mode download only the requested detector on a
+cold field. With no explicit detector, discovery metadata ranks detectors by
+exposure count, then >30-day-separated epoch count, then detector number. The
+first ranked detector with usable pixels is selected, with a coverage-first and
+fallback warning; the narrow wavelength window is evaluated from downloaded WCS.
+Complete all-band caches remain reusable. Detector subsets have separate cache
+namespaces and never count as all-band coverage. Recommendations are reused for
+one hour only while that detector's cache is complete. Opening Spectrum requests
+its bands on demand. This does not change Difference rendering.

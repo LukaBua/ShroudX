@@ -1,0 +1,16 @@
+{
+  "command": "\"C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe\" scripts/measure_altair_d2.py",
+  "status": "FAIL",
+  "parameters": {
+    "target": "Altair",
+    "detector": 2,
+    "fov": 120,
+    "mode": "blink",
+    "clean": "true",
+    "smooth": "true",
+    "show_mask": "false"
+  },
+  "clock_resolution_seconds": 1e-07,
+  "limitation": "Single run; network variability unknown. HTTP plus PNG decode, not browser paint.",
+  "error": "Altair already cached; refusing cold measurement"
+}

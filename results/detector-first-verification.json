@@ -1,0 +1,22 @@
+{
+  "status": "PASS",
+  "cache_root": "C:\\Users\\Home\\Desktop\\ShroudX\\scratch\\detector-first-000b6a87f4",
+  "command": "\"C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe\" scripts/verify_detector_first.py",
+  "detector": 2,
+  "n_selected_frames": 25,
+  "n_downloaded_frames": 97,
+  "data_versions": [
+    27
+  ],
+  "warnings": [
+    "Resolved via online Sesame lookup (coordinates only; proper motion not automatically propagated). Verify field of view for fast-moving objects.",
+    "Automatic detector selection is coverage-first: D2. Ranking uses archive exposure/epoch counts; it does not guarantee an unsaturated target core.",
+    "Images discovered through IRSA SIA (current DR1/QR3 collections); the newest TAP ingestion may not appear for approximately one day.",
+    "4 cutout downloads failed; this sequence may be incomplete.",
+    "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
+    "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+    "Missing stack pixels are filled from nearby valid pixels for display only, as in Blink. Filled brightness is an estimate, not a measurement.",
+    "No valid stack measurement exists at the requested target position. Masked or invalid core data cannot be recovered from this selection.",
+    "Some exposures contain saturated or nonlinear pixels; brightness in affected regions is unreliable."
+  ]
+}

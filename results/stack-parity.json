@@ -1,0 +1,107 @@
+{
+  "status": "PASS",
+  "cases": [
+    {
+      "target": "WISE 0855-0714",
+      "fov": 180,
+      "status": "PASS",
+      "frames": 11,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "8406c7dc1c4e2bc488b4cb8b6ab9fea66fc08acef65e46d4f4b9c5df63a6c21c"
+    },
+    {
+      "target": "WISE 0855-0714",
+      "fov": 240,
+      "status": "PASS",
+      "frames": 11,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "f02941e78ad75288bb472dbdd0cef90343ec994f8d95c9d586b86becaa16c3b3"
+    },
+    {
+      "target": "Barnard's Star",
+      "fov": 180,
+      "status": "PASS",
+      "frames": 12,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "1c1acfe33d601e93a5d2172be320cd1cee447c90916927ecfb162c8d5d6eeb91"
+    },
+    {
+      "target": "Barnard's Star",
+      "fov": 240,
+      "status": "PASS",
+      "frames": 12,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "380b3d362c22ae10687ee26e5168ec6d2d57cf52103b72f0ea425953a0a518dc"
+    },
+    {
+      "target": "Epsilon Indi B",
+      "fov": 180,
+      "status": "PASS",
+      "frames": 12,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "8dbfeaf4dbd3e38a9518e8cf012f3cc89ab3c125a2bdee61d4f736e5a6aa3d55"
+    },
+    {
+      "target": "Epsilon Indi B",
+      "fov": 240,
+      "status": "PASS",
+      "frames": 12,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "853651c0d3883a8ec0857b036d38cf207ef8452e5a944608a123a3289236d596"
+    },
+    {
+      "target": "RW Aurigae",
+      "fov": 180,
+      "status": "PASS",
+      "frames": 9,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "830980d68c76152a90af75b6d35abfdaf5d98104b99b9b443e05652f9f0cb3ef"
+    },
+    {
+      "target": "RW Aurigae",
+      "fov": 240,
+      "status": "PASS",
+      "frames": 9,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "2dfc9cef8cc86ffe599961a59d78100164229956f7afcd9d02c4a7778fe2f692"
+    },
+    {
+      "target": "R Draconis",
+      "fov": 180,
+      "status": "PASS",
+      "frames": 8,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "0d0b985de56d6d07d7f1727964f637e657ede5b5de30a8838a37a4609693870c"
+    },
+    {
+      "target": "R Draconis",
+      "fov": 240,
+      "status": "PASS",
+      "frames": 8,
+      "data_versions": [
+        27
+      ],
+      "png_sha256": "4b06f27b939ee8a81d3f7f3d136d399ba8ab24abbf5f0f638594ee2755a82ba1"
+    }
+  ],
+  "command": "\"C:\\Users\\Home\\Desktop\\ShroudX\\.venv\\Scripts\\python.exe\" scripts/verify_stack_parity.py",
+  "data_mode": "cache"
+}
