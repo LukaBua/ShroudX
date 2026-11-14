@@ -1,0 +1,124 @@
+{
+  "verdict": "PASS",
+  "data_versions": [
+    "Gaia DR3 (gaiadr3.gaia_source)"
+  ],
+  "epoch": 2026.0,
+  "radius_arcsec": 240.0,
+  "total_gaia_cache_bytes": 379635,
+  "total_gaia_cache_kb": 379.63,
+  "fields": [
+    {
+      "target": "WISE 0855-0714",
+      "cache_key": "gaia_ra133.7598_dec-07.2422_r0240.0",
+      "ra_deg": 133.75976,
+      "dec_deg": -7.24219,
+      "radius_arcsec": 240.0,
+      "epoch": 2026.0,
+      "n_sources": 129,
+      "n_sources_fov300": 44,
+      "n_pm_missing": 18,
+      "g_mag_brightest": 12.253,
+      "g_mag_median": 19.1,
+      "g_mag_sigma": 1.878,
+      "target_crossmatch": {
+        "classification": "no_gaia_counterpart",
+        "separation_arcsec": null,
+        "source_id": null,
+        "pm_diff_sigma": null
+      },
+      "citation": "2021ApJS..253....7K",
+      "cache_size_bytes": 37601
+    },
+    {
+      "target": "Barnard's Star",
+      "cache_key": "gaia_ra269.4463_dec+04.7682_r0240.0",
+      "ra_deg": 269.44627,
+      "dec_deg": 4.7682,
+      "radius_arcsec": 240.0,
+      "epoch": 2026.0,
+      "n_sources": 500,
+      "n_sources_fov300": 197,
+      "n_pm_missing": 5,
+      "g_mag_brightest": 8.194,
+      "g_mag_median": 18.377,
+      "g_mag_sigma": 1.45,
+      "target_crossmatch": {
+        "classification": "known_gaia_mover",
+        "separation_arcsec": 0.0007,
+        "source_id": 4472832130942575872,
+        "pm_diff_sigma": 0.0
+      },
+      "citation": "2020yCat.1350....0G",
+      "cache_size_bytes": 147814
+    },
+    {
+      "target": "Epsilon Indi B",
+      "cache_key": "gaia_ra331.0966_dec-56.8007_r0240.0",
+      "ra_deg": 331.09664,
+      "dec_deg": -56.80066,
+      "radius_arcsec": 240.0,
+      "epoch": 2026.0,
+      "n_sources": 114,
+      "n_sources_fov300": 42,
+      "n_pm_missing": 14,
+      "g_mag_brightest": 12.954,
+      "g_mag_median": 19.327,
+      "g_mag_sigma": 1.844,
+      "target_crossmatch": {
+        "classification": "known_gaia_mover",
+        "separation_arcsec": 0.0191,
+        "source_id": 6412596012146801152,
+        "pm_diff_sigma": 0.0
+      },
+      "citation": "2020yCat.1350....0G",
+      "cache_size_bytes": 33277
+    },
+    {
+      "target": "RW Aurigae",
+      "cache_key": "gaia_ra076.9565_dec+30.4014_r0240.0",
+      "ra_deg": 76.95653,
+      "dec_deg": 30.40144,
+      "radius_arcsec": 240.0,
+      "epoch": 2026.0,
+      "n_sources": 466,
+      "n_sources_fov300": 175,
+      "n_pm_missing": 51,
+      "g_mag_brightest": 11.877,
+      "g_mag_median": 19.082,
+      "g_mag_sigma": 1.723,
+      "target_crossmatch": {
+        "classification": "known_gaia_mover",
+        "separation_arcsec": 0.6926,
+        "source_id": 156430817820015232,
+        "pm_diff_sigma": 0.9683
+      },
+      "citation": "2007A&A...474..653V",
+      "cache_size_bytes": 135038
+    },
+    {
+      "target": "R Draconis",
+      "cache_key": "gaia_ra248.1676_dec+66.7550_r0240.0",
+      "ra_deg": 248.16761,
+      "dec_deg": 66.75498,
+      "radius_arcsec": 240.0,
+      "epoch": 2026.0,
+      "n_sources": 90,
+      "n_sources_fov300": 33,
+      "n_pm_missing": 19,
+      "g_mag_brightest": 6.374,
+      "g_mag_median": 19.215,
+      "g_mag_sigma": 2.391,
+      "target_crossmatch": {
+        "classification": "known_gaia_mover",
+        "separation_arcsec": 0.5607,
+        "source_id": 1648328016354496384,
+        "pm_diff_sigma": 0.0001
+      },
+      "citation": "2020yCat.1350....0G",
+      "cache_size_bytes": 25905
+    }
+  ],
+  "failures": [],
+  "command": "python scripts/fetch_gaia.py"
+}

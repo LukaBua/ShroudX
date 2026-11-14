@@ -38,6 +38,7 @@ from starlette.staticfiles import StaticFiles
 
 import coords
 import data
+import gaia
 import processing
 import motion
 from frame import Frame
@@ -715,7 +716,7 @@ def create_app(
                 APIError(500, "internal_error", "Unable to process the observations.")
             )
         msg = str(exc).strip()
-        if exc.code == "archive_unreachable" and "IRSA" not in msg:
+        if exc.code == "archive_unreachable" and "IRSA" not in msg and "Gaia" not in msg:
             msg = (
                 f"IRSA archive is unreachable: {msg}"
                 if msg
@@ -851,6 +852,27 @@ def create_app(
                 "Content-Disposition": 'attachment; filename="shroudx-blink.gif"',
             },
         )
+
+    @application.get("/api/catalog")
+    def catalog_endpoint(request: Request):
+        selection, _ = parse_selection(request)
+        resolved = resolve(selection.position)
+        fov = (
+            selection.fov
+            if selection.fov is not None
+            else (resolved["suggested_fov_arcsec"] or 120)
+        )
+        body = gaia.build_catalog(
+            resolved["ra"],
+            resolved["dec"],
+            fov / 2.0,
+            epoch=coords.DEFAULT_SURVEY_EPOCH,
+            cache_root=root,
+            mode=data_mode,
+            timeout=timeout_sec,
+            base_warnings=resolved["warnings"],
+        )
+        return json_response(body)
 
     @application.get("/", include_in_schema=False)
     def index():

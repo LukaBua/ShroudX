@@ -241,6 +241,10 @@ def bundle_demo_cache(
                 }
             )
 
+        for existing_gaia in (src_root / "gaia", out_root / "gaia"):
+            if existing_gaia.is_dir():
+                shutil.copytree(existing_gaia, staging_dir / "gaia", dirs_exist_ok=True)
+
         # Atomically replace output_dir with staging_dir contents
         if out_root.exists():
             shutil.rmtree(out_root)
