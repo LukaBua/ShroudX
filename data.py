@@ -1,4 +1,3 @@
-# AI-assisted: written with AI pair-programming assistant.
 """SPHEREx IRSA cutout query, download, disk caching, and Frame construction."""
 
 from __future__ import annotations
