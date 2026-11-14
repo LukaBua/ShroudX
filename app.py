@@ -11,6 +11,7 @@ per-request timeout.
 from __future__ import annotations
 
 import copy
+import io
 import logging
 import math
 import os
@@ -27,6 +28,7 @@ from astropy.time import Time
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
+from PIL import Image, ImageDraw
 from starlette.exceptions import HTTPException
 from starlette.staticfiles import StaticFiles
 
@@ -38,9 +40,67 @@ ROOT = Path(__file__).resolve().parent
 LOG = logging.getLogger(__name__)
 T = TypeVar("T")
 
+GIF_MAX_BYTES = 10_000_000
 DEFAULT_REQUEST_TIMEOUT_SEC: float = 30.0
 DEFAULT_IRSA_CONCURRENCY: int = 2
 DEFAULT_IRSA_QUEUE_TIMEOUT_SEC: float = 2.0
+
+
+def render_blink_gif(product: Products, speed: int) -> bytes:
+    """Caption the cached PNGs without recomputing their authoritative stretch.
+
+    GIF stores delays in 10 ms units; round requested delays to the nearest
+    10 ms. Ordinal captions keep identical observations as separate GIF frames.
+    Reduce the image area until the encoded file is strictly below 10 MB.
+    """
+    images = []
+    for png in product.blink:
+        with Image.open(io.BytesIO(png)) as image:
+            images.append(image.convert("L"))
+    if not images:
+        raise APIError(422, "insufficient_data", "No frames available for GIF export.")
+    width, height = images[0].size
+    palette = [channel for value in range(256) for channel in (value, value, value)]
+    while True:
+        animation = []
+        for i, (image, frame) in enumerate(zip(images, product.metadata["frames"], strict=True)):
+            canvas = Image.new("L", (max(360, width), height + 30), 0)
+            canvas.paste(
+                image.resize((width, height), Image.Resampling.NEAREST),
+                ((canvas.width - width) // 2, 0),
+            )
+            draw = ImageDraw.Draw(canvas)
+            draw.text(
+                (4, height + 2),
+                f"{i + 1}/{len(images)} | {frame['date']} | {frame['wavelength_um']:.4f} um",
+                fill=255,
+            )
+            label = "SYNTHETIC DATA | " if product.metadata["synthetic"] else ""
+            draw.text((4, height + 16), label + "ShroudX / SPHEREx", fill=255)
+            indexed = canvas.convert("P")
+            indexed.putpalette(palette)
+            animation.append(indexed)
+        output = io.BytesIO()
+        animation[0].save(
+            output,
+            format="GIF",
+            save_all=True,
+            append_images=animation[1:],
+            loop=0,
+            duration=10 * ((speed + 5) // 10),
+            disposal=2,
+            optimize=False,
+        )
+        result = output.getvalue()
+        if len(result) < GIF_MAX_BYTES:
+            return result
+        if width == 1 and height == 1:
+            raise APIError(
+                422,
+                "insufficient_data",
+                "Too many frames to export a GIF below 10 MB; narrow the wavelength window.",
+            )
+        width, height = max(1, int(width * 0.7)), max(1, int(height * 0.7))
 
 
 class APIError(Exception):
@@ -287,8 +347,7 @@ def resolve(position: Position) -> dict[str, Any]:
     source = {"offline": "offline_table", "sesame": "simbad"}.get(result.source, result.source)
     if source not in ("offline_table", "simbad"):
         raise RuntimeError("Unknown coordinate provenance")
-    canonical = coords._OFFLINE_ALIASES.get(position.target.lower(), position.target)
-    profile = coords.OFFLINE_TARGETS.get(canonical)
+    profile = coords.lookup_offline_target(position.target)
     suggestion = coords.TARGET_PROFILES.get(profile.target_class) if profile else None
     fast = bool(
         profile
@@ -311,7 +370,6 @@ def build_products(
     selection: Selection,
     data_mode: str,
     cache_root: Path,
-    *,
     request_timeout: float = DEFAULT_REQUEST_TIMEOUT_SEC,
     irsa_semaphore: threading.BoundedSemaphore | None = None,
     irsa_queue_timeout: float = DEFAULT_IRSA_QUEUE_TIMEOUT_SEC,
@@ -546,9 +604,9 @@ def create_app(
                 selection,
                 data_mode,
                 root,
-                request_timeout=timeout_sec,
-                irsa_semaphore=irsa_semaphore,
-                irsa_queue_timeout=queue_timeout_sec,
+                timeout_sec,
+                irsa_semaphore,
+                queue_timeout_sec,
             ),
             wait_timeout=timeout_sec,
         )
@@ -597,6 +655,30 @@ def create_app(
                 "Cache-Control": "no-store",
                 "X-Data-Source": source,
                 "X-Synthetic": str(data_mode == "synthetic").lower(),
+            },
+        )
+
+    @application.get("/api/blink.gif")
+    def blink_gif_endpoint(request: Request):
+        selection, _ = parse_selection(request)
+        speed = integer(request, "speed")
+        speed = 500 if speed is None else speed
+        if not 50 <= speed <= 2000:
+            raise bad_input("GIF speed must be between 50 and 2000 milliseconds.", "speed")
+        product, hit = products(selection)
+        content = render_blink_gif(product, speed)
+        source = product.metadata["data_source"]
+        if hit and source == "archive":
+            source = "cache"
+        return Response(
+            content,
+            media_type="image/gif",
+            headers={
+                "Cache-Control": "no-store",
+                "X-Gif-Size-Bytes": str(len(content)),
+                "X-Data-Source": source,
+                "X-Synthetic": str(data_mode == "synthetic").lower(),
+                "Content-Disposition": 'attachment; filename="shroudx-blink.gif"',
             },
         )
 
