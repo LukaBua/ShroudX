@@ -11,16 +11,14 @@ from astropy.coordinates import Angle, SkyCoord
 from astropy.coordinates.name_resolve import NameResolveError
 
 DEFAULT_SURVEY_EPOCH: float = 2026.0
-HIGH_PM_THRESHOLD_MAS_YR: float = 1000.0  # 1 arcsec / yr = 1000 mas / yr
+HIGH_PM_THRESHOLD_MAS_YR: float = 1000.0  
 
-# Heuristic mapping of target astrophysical classes to SPHEREx detectors (1-6).
-# Used strictly as an initial UI suggestion that the user can override.
 TARGET_PROFILES: dict[str, int] = {
-    "cold brown dwarf": 5,     # 3.83 - 4.41 um (CH4 / CO window, peak flux for Y/late-T)
-    "m dwarf": 2,              # 1.10 - 1.62 um (near-IR J/H stellar continuum peak)
-    "t tauri star": 3,         # 1.63 - 2.41 um (K-band inner disk excess & veil)
-    "agb / mira variable": 4,  # 2.42 - 3.82 um (molecular bands & warm dust)
-    "solar system body": 1,    # 0.75 - 1.09 um (reflected solar continuum)
+    "cold brown dwarf": 5,     
+    "m dwarf": 2,              
+    "t tauri star": 3,         
+    "agb / mira variable": 4,  
+    "solar system body": 1,    
 }
 
 
@@ -96,7 +94,6 @@ OFFLINE_TARGETS: dict[str, OfflineEntry] = {
     ),
 }
 
-# Normalization lookup mapping lowercase stripped aliases to canonical OFFLINE_TARGETS keys.
 _OFFLINE_ALIASES: dict[str, str] = {
     "wise 0855-0714": "WISE 0855-0714",
     "wise j085510.83-071442.5": "WISE 0855-0714",
