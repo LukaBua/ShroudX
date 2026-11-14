@@ -19,7 +19,9 @@ from processing import (
     align_frames,
     clean_frame,
     compute_stretch,
+    difference_images,
     group_frames,
+    render_diff_png,
     render_png,
     split_epochs,
     stack_frames,
@@ -564,3 +566,162 @@ def test_align_frames_nan_variance_and_none_meta_fallback() -> None:
     # Under a half-pixel shift, all 4 pixels touching NaN variance are masked
     (aligned_shifted,) = align_frames([frame], target_ra=ra0, target_dec=dec0)
     assert int(np.count_nonzero(aligned_shifted.mask[6:8, 6:8])) == 4
+
+
+def test_difference_images_moving_source_dipole_and_stationary_cancellation() -> None:
+    """3-pixel mover appears as a positive/negative pair; stationary sources cancel in noise."""
+    rng = np.random.default_rng(2026)
+    ny, nx = 32, 32
+    sigma_noise = 1.0
+    var_in = sigma_noise**2
+
+    # Two stationary sources
+    stationary = _gaussian_source(ny, nx, 8.0, 8.0, flux=250.0, sigma_px=1.0) + _gaussian_source(
+        ny, nx, 24.0, 22.0, flux=180.0, sigma_px=1.0
+    )
+
+    # Moving source shifts by 3 pixels in x between Epoch 0 (x=14, y=16) and Epoch 1 (x=17, y=16)
+    x_ep0, y_ep0 = 14.0, 16.0
+    x_ep1, y_ep1 = 17.0, 16.0
+    mover_ep0 = _gaussian_source(ny, nx, x_ep0, y_ep0, flux=120.0, sigma_px=0.9)
+    mover_ep1 = _gaussian_source(ny, nx, x_ep1, y_ep1, flux=120.0, sigma_px=0.9)
+
+    frames: list[Frame] = []
+    # Epoch 0: 4 frames around MJD 60900
+    for i in range(4):
+        noise = rng.normal(0.0, sigma_noise, size=(ny, nx))
+        frames.append(
+            _make_frame(
+                ny=ny,
+                nx=nx,
+                image=stationary + mover_ep0 + noise,
+                variance=np.full((ny, nx), var_in, dtype=np.float64),
+                wavelength=4.12,
+                mjd=60900.0 + 0.5 * i,
+            )
+        )
+    # Epoch 1: 4 frames around MJD 61085 (>30 days later)
+    for i in range(4):
+        noise = rng.normal(0.0, sigma_noise, size=(ny, nx))
+        frames.append(
+            _make_frame(
+                ny=ny,
+                nx=nx,
+                image=stationary + mover_ep1 + noise,
+                variance=np.full((ny, nx), var_in, dtype=np.float64),
+                wavelength=4.14,
+                mjd=61085.0 + 0.5 * i,
+            )
+        )
+
+    res = difference_images(frames)
+    diff, stack_a, stack_b = res
+    assert res.warnings == []
+    assert res.epoch_a == 0
+    assert res.epoch_b == 1
+    assert stack_a.image.shape == (ny, nx)
+    assert stack_b.image.shape == (ny, nx)
+
+    # Propagated sigma matches sqrt(var_a + var_b) from the two epoch stacks
+    expected_sigma = np.sqrt(stack_a.variance + stack_b.variance)
+    assert np.allclose(res.sigma, expected_sigma)
+    assert float(np.median(res.sigma)) == pytest.approx(np.sqrt(0.5))
+
+    # Moving source: positive peak at Epoch 1 (later) position, negative trough at Epoch 0 (earlier)
+    y_pos, x_pos = np.unravel_index(int(np.nanargmax(diff)), diff.shape)
+    y_neg, x_neg = np.unravel_index(int(np.nanargmin(diff)), diff.shape)
+    assert (x_pos, y_pos) == (int(x_ep1), int(y_ep1))
+    assert (x_neg, y_neg) == (int(x_ep0), int(y_ep0))
+    assert np.hypot(x_pos - x_neg, y_pos - y_neg) == pytest.approx(3.0)
+    assert diff[int(y_ep1), int(x_ep1)] > 80.0
+    assert diff[int(y_ep0), int(x_ep0)] < -80.0
+    assert diff[int(y_ep1), int(x_ep1)] == pytest.approx(
+        -diff[int(y_ep0), int(x_ep0)], rel=0.08
+    )
+
+    # Stationary sources cancel within the noise (|z| < 3 sigma, local std ~ 1)
+    assert abs(float(diff[8, 8])) < 3.0
+    assert abs(float(diff[22, 24])) < 3.0
+    stat_patch_1 = diff[5:12, 5:12]
+    stat_patch_2 = diff[19:26, 21:28]
+    assert abs(float(np.mean(stat_patch_1))) < 0.6
+    assert abs(float(np.mean(stat_patch_2))) < 0.6
+    assert float(np.max(np.abs(stat_patch_1))) < 3.5
+    assert float(np.max(np.abs(stat_patch_2))) < 3.5
+
+
+def test_difference_images_wavelength_warning_and_single_epoch_error() -> None:
+    """Wavelength caution fires when |dw| > max_width / 2; fewer than 2 epochs raises ValueError."""
+    # Epoch 0 mean wavelength = 4.10 um, Epoch 1 mean wavelength = 4.18 um
+    # Difference = 0.08 um > 0.05 um (half of default max_width = 0.10 um)
+    frames_warn = [
+        _make_frame(ny=12, nx=12, wavelength=4.10, mjd=60900.0),
+        _make_frame(ny=12, nx=12, wavelength=4.10, mjd=60901.0),
+        _make_frame(ny=12, nx=12, wavelength=4.18, mjd=61000.0),
+        _make_frame(ny=12, nx=12, wavelength=4.18, mjd=61001.0),
+    ]
+    with pytest.warns(UserWarning, match=r"colour|wavelength"):
+        res = difference_images(frames_warn, max_width=0.10)
+    assert len(res.warnings) == 1
+    assert "colour" in res.warnings[0].lower()
+
+    # One epoch raises a clear ValueError
+    single_epoch_frames = [
+        _make_frame(ny=12, nx=12, wavelength=4.10, mjd=60900.0),
+        _make_frame(ny=12, nx=12, wavelength=4.10, mjd=60905.0),
+        _make_frame(ny=12, nx=12, wavelength=4.10, mjd=60915.0),
+    ]
+    with pytest.raises(ValueError, match=r"2 epochs"):
+        difference_images(single_epoch_frames)
+
+    with pytest.raises(ValueError, match=r"2 epochs"):
+        difference_images([])
+
+
+def test_difference_images_epoch_selection_and_render_diff_png() -> None:
+    """difference_images defaults to first/last epoch and render_diff_png applies symmetric stretch."""
+    ny, nx = 16, 16
+    img_ep0 = _gaussian_source(ny, nx, 4.0, 8.0, flux=50.0, sigma_px=0.8)
+    img_ep1 = _gaussian_source(ny, nx, 7.0, 8.0, flux=50.0, sigma_px=0.8)
+    img_ep2 = _gaussian_source(ny, nx, 10.0, 8.0, flux=50.0, sigma_px=0.8)
+
+    frames = [
+        _make_frame(ny=ny, nx=nx, image=img_ep0, wavelength=4.12, mjd=60800.0),
+        _make_frame(ny=ny, nx=nx, image=img_ep1, wavelength=4.12, mjd=60900.0),
+        _make_frame(ny=ny, nx=nx, image=img_ep2, wavelength=4.12, mjd=61000.0),
+    ]
+
+    # Default compares first (0) and last (2) epoch
+    diff_default, _, _ = difference_images(frames)
+    assert diff_default[8, 10] > 20.0
+    assert diff_default[8, 4] < -20.0
+    assert abs(float(diff_default[8, 7])) < 1e-3
+
+    # Explicit epoch_a=0, epoch_b=1 compares epoch 0 and epoch 1
+    diff_01, _, _ = difference_images(frames, epoch_a=0, epoch_b=1)
+    assert diff_01[8, 7] > 20.0
+    assert diff_01[8, 4] < -20.0
+    assert abs(float(diff_01[8, 10])) < 0.05
+
+    # Invalid epoch indices raise ValueError
+    with pytest.raises(ValueError, match="distinct"):
+        difference_images(frames, epoch_a=1, epoch_b=1)
+    with pytest.raises(ValueError, match="out of range"):
+        difference_images(frames, epoch_a=0, epoch_b=5)
+
+    # render_diff_png symmetric stretch: positive -> 255, negative -> 0, zero -> 128
+    png_bytes = render_diff_png(diff_default, limit=10.0)
+    assert png_bytes[:8] == b"\x89PNG\r\n\x1a\n"
+    arr = np.asarray(Image.open(io.BytesIO(png_bytes)))
+    assert arr.shape == (ny, nx)
+    row_png = ny - 1 - 8
+    assert int(arr[row_png, 10]) == 255
+    assert int(arr[row_png, 4]) == 0
+    assert int(arr[0, 0]) == 128
+
+    # Percentile-based default limit also renders positive bright, negative dark, zero mid-grey
+    png_auto = render_diff_png(diff_default)
+    arr_auto = np.asarray(Image.open(io.BytesIO(png_auto)))
+    assert int(arr_auto[row_png, 10]) == 255
+    assert int(arr_auto[row_png, 4]) == 0
+    assert int(arr_auto[0, 0]) == 128
