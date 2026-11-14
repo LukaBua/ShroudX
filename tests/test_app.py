@@ -22,6 +22,93 @@ from tests.test_data import _make_cutout_hdul
 POSITION = {"ra": "133.76", "dec": "-7.24"}
 
 
+def test_blink_gif_frames_stretch_captions_and_headers(api):
+    client, calls, _ = api
+    meta = client.get("/api/meta", params=POSITION).json()
+    response = client.get("/api/blink.gif", params={**POSITION, "speed": 125, "mode": "stack"})
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "image/gif"
+    assert int(response.headers["x-gif-size-bytes"]) == len(response.content) < 10_000_000
+    assert response.headers["x-synthetic"] == "false"
+    assert "attachment" in response.headers["content-disposition"]
+    with Image.open(io.BytesIO(response.content)) as gif:
+        assert gif.n_frames == meta["n_frames"]
+        assert gif.info["loop"] == 0
+        captions = []
+        for i in range(gif.n_frames):
+            gif.seek(i)
+            assert gif.info["duration"] == 130
+            png = client.get("/api/image.png", params={**POSITION, "index": i})
+            with Image.open(io.BytesIO(png.content)) as image:
+                left = (gif.width - image.width) // 2
+                np.testing.assert_array_equal(
+                    np.asarray(gif.convert("L").crop((left, 0, left + image.width, image.height))),
+                    np.asarray(image))
+                captions.append(np.asarray(gif.convert("L"))[image.height:].copy())
+        assert not np.array_equal(captions[0], captions[1])
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("speed", ["49", "2001", "nan", "50.5", ""])
+def test_blink_gif_invalid_speed(api, speed):
+    client, calls, _ = api
+    response = client.get("/api/blink.gif", params={**POSITION, "speed": speed})
+    assert response.status_code == 400
+    assert response.json()["error"]["code"] == "bad_input"
+    assert not calls
+
+
+def test_blink_gif_default_speed_and_identical_images(api, monkeypatch):
+    client, _, _ = api
+    product = backend.build_products(backend.Selection(
+        backend.Position(None, "133.76", "-7.24"), 120, None, None, None),
+        "auto", backend.ROOT / "cache")
+    product.blink = (product.blink[0],) * len(product.blink)
+    monkeypatch.setattr(backend, "build_products", lambda *a: product)
+    response = client.get("/api/blink.gif", params=POSITION)
+    with Image.open(io.BytesIO(response.content)) as gif:
+        assert gif.n_frames == len(product.blink)
+        assert gif.info["duration"] == 500
+
+
+def test_blink_gif_downscales_without_dropping_frames(api, monkeypatch):
+    client, _, _ = api
+    rng = np.random.default_rng(2026)
+    pngs = []
+    for _ in range(4):
+        buf = io.BytesIO()
+        Image.fromarray(rng.integers(0, 256, (256, 256), dtype=np.uint8)).save(buf, format="PNG")
+        pngs.append(buf.getvalue())
+    product = backend.Products({"synthetic": False, "data_source": "cache", "frames": [
+        {"date": "2026-01-01", "wavelength_um": 4.1} for _ in pngs]}, tuple(pngs), pngs[0])
+    monkeypatch.setattr(backend, "build_products", lambda *a: product)
+    monkeypatch.setattr(backend, "GIF_MAX_BYTES", 60_000)
+    response = client.get("/api/blink.gif", params=POSITION)
+    assert response.status_code == 200, response.text
+    assert len(response.content) < 60_000
+    assert int(response.headers["x-gif-size-bytes"]) == len(response.content)
+    with Image.open(io.BytesIO(response.content)) as gif:
+        assert gif.n_frames == 4
+        assert gif.height < 256 + 30
+
+
+def test_blink_gif_standard_error_and_synthetic_provenance(api, monkeypatch, tmp_path):
+    client, _, _ = api
+    def no_coverage(*a, **k):
+        raise data.NoCoverageError("No SPHEREx coverage at this position.")
+    original = data.get_frames
+    monkeypatch.setattr(data, "get_frames", no_coverage)
+    response = client.get("/api/blink.gif", params=POSITION)
+    assert response.status_code == 404
+    assert response.json()["error"]["code"] == "no_coverage"
+    monkeypatch.setattr(data, "get_frames", original)
+    # The API mode controls provenance independently of a mocked loader.
+    with TestClient(backend.create_app(mode="synthetic", cache_root=tmp_path)) as synthetic:
+        response = synthetic.get("/api/blink.gif", params=POSITION)
+        assert response.status_code == 200
+        assert response.headers["x-synthetic"] == "true"
+
+
 @pytest.fixture
 def frames():
     yy, xx = np.mgrid[:20, :20]
