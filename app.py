@@ -9,6 +9,7 @@ Only rendered products are retained by this application cache.
 from __future__ import annotations
 
 import copy
+import io
 import logging
 import math
 import os
@@ -21,6 +22,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
+from PIL import Image, ImageDraw
 from astropy.time import Time
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -34,6 +36,50 @@ import processing
 
 ROOT = Path(__file__).resolve().parent
 LOG = logging.getLogger(__name__)
+GIF_MAX_BYTES = 10_000_000
+
+
+def render_blink_gif(product: Products, speed: int) -> bytes:
+    """Caption the cached PNGs without recomputing their authoritative stretch.
+
+    GIF stores delays in 10 ms units; round requested delays to the nearest
+    10 ms. Ordinal captions keep identical observations as separate GIF frames.
+    Reduce the image area until the encoded file is strictly below 10 MB.
+    """
+    images = []
+    for png in product.blink:
+        with Image.open(io.BytesIO(png)) as image:
+            images.append(image.convert("L"))
+    if not images:
+        raise APIError(422, "insufficient_data", "No frames available for GIF export.")
+    width, height = images[0].size
+    palette = [channel for value in range(256) for channel in (value, value, value)]
+    while True:
+        animation = []
+        for i, (image, frame) in enumerate(zip(images, product.metadata["frames"], strict=True)):
+            canvas = Image.new("L", (max(360, width), height + 30), 0)
+            canvas.paste(image.resize((width, height), Image.Resampling.NEAREST),
+                         ((canvas.width - width) // 2, 0))
+            draw = ImageDraw.Draw(canvas)
+            draw.text((4, height + 2),
+                      f"{i + 1}/{len(images)} | {frame['date']} | "
+                      f"{frame['wavelength_um']:.4f} um", fill=255)
+            label = "SYNTHETIC DATA | " if product.metadata["synthetic"] else ""
+            draw.text((4, height + 16), label + "ShroudX / SPHEREx", fill=255)
+            indexed = canvas.convert("P")
+            indexed.putpalette(palette)
+            animation.append(indexed)
+        output = io.BytesIO()
+        animation[0].save(output, format="GIF", save_all=True,
+                          append_images=animation[1:], loop=0,
+                          duration=10 * ((speed + 5) // 10), disposal=2, optimize=False)
+        result = output.getvalue()
+        if len(result) < GIF_MAX_BYTES:
+            return result
+        if width == 1 and height == 1:
+            raise APIError(422, "insufficient_data",
+                           "Too many frames to export a GIF below 10 MB; narrow the wavelength window.")
+        width, height = max(1, int(width * .7)), max(1, int(height * .7))
 
 
 class APIError(Exception):
@@ -386,6 +432,24 @@ def create_app(*, mode: str | None = None, cache_root: str | Path | None = None)
         return Response(content, media_type="image/png", headers={
             "Cache-Control": "no-store", "X-Data-Source": source,
             "X-Synthetic": str(data_mode == "synthetic").lower(),
+        })
+
+    @application.get("/api/blink.gif")
+    def blink_gif_endpoint(request: Request):
+        selection, _ = parse_selection(request)
+        speed = integer(request, "speed")
+        speed = 500 if speed is None else speed
+        if not 50 <= speed <= 2000:
+            raise bad_input("GIF speed must be between 50 and 2000 milliseconds.", "speed")
+        product, hit = products(selection)
+        content = render_blink_gif(product, speed)
+        source = product.metadata["data_source"]
+        if hit and source == "archive":
+            source = "cache"
+        return Response(content, media_type="image/gif", headers={
+            "Cache-Control": "no-store", "X-Gif-Size-Bytes": str(len(content)),
+            "X-Data-Source": source, "X-Synthetic": str(data_mode == "synthetic").lower(),
+            "Content-Disposition": 'attachment; filename="shroudx-blink.gif"',
         })
 
     @application.get("/", include_in_schema=False)
