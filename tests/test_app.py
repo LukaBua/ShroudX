@@ -22,6 +22,90 @@ from tests.test_data import _make_cutout_hdul
 POSITION = {"ra": "133.76", "dec": "-7.24"}
 
 
+def test_difference_api_delegates_processing_and_preserves_metadata(api, monkeypatch):
+    from types import SimpleNamespace
+
+    client, calls, _ = api
+    selected = []
+    rendered = []
+    warning = "Mean wavelengths differ; a colour change can mimic or hide motion."
+    diff = np.linspace(-4, 8, 400).reshape(20, 20)
+    renderer = processing.render_diff_png
+
+    def difference(frames, epoch_a=None, epoch_b=None):
+        selected.append((frames, epoch_a, epoch_b))
+        return SimpleNamespace(diff=diff, warnings=[warning])
+
+    def render(array, limit=None):
+        rendered.append((array, limit))
+        return renderer(array, limit=limit)
+
+    monkeypatch.setattr(processing, "difference_images", difference)
+    monkeypatch.setattr(processing, "render_diff_png", render)
+    original = client.get("/api/meta", params=POSITION).json()
+    query = {**POSITION, "mode": "diff", "epoch_a": 1, "epoch_b": 0}
+    response = client.get("/api/meta", params=query)
+    assert response.status_code == 200, response.text
+    assert warning in response.json()["warnings"]
+    assert response.json()["stretch"] == original["stretch"]
+    assert warning not in client.get("/api/meta", params=POSITION).json()["warnings"]
+    response = client.get("/api/image.png", params=query)
+    assert response.status_code == 200, response.text
+    assert response.headers["content-type"] == "image/png"
+    expected_limit = np.percentile(abs(diff), processing.DEFAULT_DIFF_PERCENTILE)
+    assert float(response.headers["x-diff-limit"]) == pytest.approx(expected_limit)
+    assert rendered[0][0] is diff
+    assert rendered[0][1] == pytest.approx(expected_limit)
+    with Image.open(io.BytesIO(response.content)) as image:
+        assert list(reversed(image.size)) == original["image_shape"]
+    assert all((a, b) == (1, 0) for _, a, b in selected)
+    assert all(f.zodi is None and f.wcs is not None for f in selected[0][0])
+    client.get("/api/image.png", params={**POSITION, "mode": "diff"})
+    assert selected[-1][1:] == (0, 1)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("extra", [
+    {"epoch_a": "abc"}, {"epoch_a": "1.5"}, {"epoch_a": -1},
+    {"epoch_b": 20}, {"epoch_a": 0, "epoch_b": 0},
+])
+def test_difference_invalid_epochs(api, extra):
+    client, _, _ = api
+    for route in ("/api/meta", "/api/image.png"):
+        response = client.get(route, params={**POSITION, "mode": "diff", **extra})
+        assert response.status_code == 400
+        assert response.json()["error"]["code"] == "bad_input"
+
+
+def test_difference_insufficient_epochs_and_no_overlap(api, frames, monkeypatch):
+    from types import SimpleNamespace
+
+    client, _, application = api
+    monkeypatch.setattr(data, "get_frames", lambda *a, **k: frames[:2])
+    for route in ("/api/meta", "/api/image.png"):
+        response = client.get(route, params={**POSITION, "mode": "diff"})
+        assert response.status_code == 422
+        assert response.json()["error"]["code"] == "insufficient_data"
+    application.state.products.entries.clear()
+    monkeypatch.setattr(data, "get_frames", lambda *a, **k: frames)
+    monkeypatch.setattr(processing, "difference_images", lambda *a, **k:
+                        SimpleNamespace(diff=np.full((20, 20), np.nan), warnings=[]))
+    assert client.get("/api/image.png", params={**POSITION, "mode": "diff"}).status_code == 422
+
+
+def test_difference_real_processing_warning_and_synthetic_label(tmp_path):
+    with TestClient(backend.create_app(mode="synthetic", cache_root=tmp_path)) as client:
+        query = {**POSITION, "mode": "diff", "wmin": 4.0, "wmax": 4.4}
+        with pytest.warns(UserWarning, match="colour change"):
+            response = client.get("/api/meta", params=query)
+        assert response.status_code == 200, response.text
+        assert any("colour change" in w for w in response.json()["warnings"])
+        with pytest.warns(UserWarning, match="colour change"):
+            image = client.get("/api/image.png", params=query)
+        assert image.status_code == 200
+        assert image.headers["x-synthetic"] == "true"
+
+
 def test_blink_gif_frames_stretch_captions_and_headers(api):
     client, calls, _ = api
     meta = client.get("/api/meta", params=POSITION).json()
@@ -190,7 +274,7 @@ def test_metadata_images_shared_stretch_and_cache(api, monkeypatch):
     {**POSITION, "wmin": "5", "wmax": "4"},
     {**POSITION, "wmin": "nan", "wmax": "4"},
     {**POSITION, "wmin": "0", "wmax": "4"},
-    {**POSITION, "mode": "diff"}, {**POSITION, "mode": "unknown"},
+    {**POSITION, "mode": "unknown"},
     {**POSITION, "ra": "360"}, {**POSITION, "dec": "91"},
     {**POSITION, "ra": ""}, {"target": " "},
 ])

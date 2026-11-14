@@ -74,6 +74,31 @@ test('empty coverage produces an empty state, preserving structured server error
   await h.run('load()');assert.equal(h.el('placeholder').textContent,'No SPHEREx coverage here.');assert.equal(h.el('play').disabled,true);
 });
 
+test('difference view requests one image with selected epochs and disables playback',async()=>{
+  const h=harness();const m=h.run('previewMeta(params())');m.synthetic=false;m.data_source='cache';
+  m.warnings=['Colour changes may mimic motion.'];
+  h.el('mode').value='diff';h.el('epoch_a').value='1';h.el('epoch_b').value='0';
+  h.el('mode').onchange();assert.equal(h.el('epochFields').hidden,false);
+  h.context.fetch=async url=>{h.calls.push(url);return url.startsWith('/api/meta')?
+    {ok:true,json:async()=>m}:{ok:true,headers:{get:()=> 'image/png'},blob:async()=>new Blob(['fixture'],{type:'image/png'})};};
+  await h.run('load()');
+  assert.equal(h.calls.length,2);
+  for(const url of h.calls){const p=new URL(url,'http://localhost').searchParams;
+    assert.equal(p.get('mode'),'diff');assert.equal(p.get('epoch_a'),'1');assert.equal(p.get('epoch_b'),'0');
+    assert.equal(p.has('index'),false);
+  }
+  assert.equal(h.el('counter').textContent,'Epoch difference');
+  assert.equal(h.el('play').disabled,true);
+  assert.equal(h.el('diffCaption').hidden,false);
+  assert.equal(h.el('warnings').children[0].textContent,m.warnings[0]);
+  assert.equal(h.el('epoch_a').children.length,2);
+  assert.match(h.context.location.href,/epoch_a=1/);
+  h.el('mode').value='blink';h.el('mode').onchange();
+  assert.equal(h.el('epochFields').hidden,true);
+  assert.equal(h.run('params().has("epoch_a")'),false);
+  h.run('clearView()');assert.equal(h.el('diffCaption').hidden,true);
+});
+
 test('display filters never alter API selection and reset to neutral',()=>{
   const h=harness();
   const before=h.run('params().toString()');

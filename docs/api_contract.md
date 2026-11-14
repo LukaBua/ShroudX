@@ -31,6 +31,10 @@ Only `/api/image.png` also takes `index` (integer, 0-based, position in the `fra
 
 With `mode=diff`, `/api/image.png` also takes `epoch_a` and `epoch_b` (integers matching `epochs[].epoch` in `/api/meta`; defaults: the first and the last epoch). The image is the signed difference, later minus earlier, with a symmetric stretch around zero. Both epochs must use the same detector and wavelength window; if their mean wavelengths differ by more than half of `max_width` (0.05 micrometres with the default 0.10), `/api/meta` adds a warning when the request is for `mode=diff`.
 
+Difference mode is implemented. Supply the same optional `epoch_a` and `epoch_b` to `/api/meta` so its warnings describe the selected comparison. Reversed epoch selections are normalized chronologically: the sign always means later minus earlier. Unknown, negative, non-integer, repeated, or equal epoch identifiers return 400 `bad_input`. Fewer than two available epochs or no overlapping usable pixels return 422 `insufficient_data`. Epoch parameters are ignored outside Difference mode.
+
+The difference PNG uses the exact aligned grid and dimensions of the blink/stack products. `X-Diff-Limit` always reports the positive symmetric display limit in sigma units (the default renderer percentile of absolute finite significance values, with a positive fallback for an all-zero result). The blink/stack `stretch` field remains unchanged. Scientific differencing and rendering are delegated to `processing.difference_images` and `processing.render_diff_png`.
+
 UI-only parameters, kept in the page URL but never sent to the API: `speed` (milliseconds per frame, 50 to 2000) and `frame` (current frame index).
 
 ## Error format
@@ -172,7 +176,7 @@ Returns a PNG for one frame or for the stack.
 
 - `mode=blink` with `index=N`: the cleaned, aligned frame N.
 - `mode=stack`: the inverse-variance weighted stack of all frames in the window.
-- `mode=diff` with optional `epoch_a` and `epoch_b`: the difference of two epoch stacks (Phase 2, Prompt 16).
+- `mode=diff` with optional `epoch_a` and `epoch_b`: the signed significance difference of two epoch stacks (implemented, Phase 2, Prompt 16).
 
 Rules:
 
@@ -263,6 +267,7 @@ Until the real endpoints exist, the frontend can serve static JSON files shaped 
 
 ## Changelog
 
+- Added implemented Difference mode, epoch validation and error semantics, chronological sign convention, wavelength warnings and `X-Diff-Limit` behavior.
 - 1.2: Implemented `/api/blink.gif`, with exact size and provenance headers, captioned frames, integer speed validation and GIF timing resolution. Documented downscaling and display-only brightness/contrast controls.
 - 1.1: `/api/resolve` takes only `target`, `ra`, `dec`. Added the 422 `insufficient_data` error. Stated that `stretch` in `/api/meta` applies to blink and stack only, and added the `X-Diff-Limit` header for diff images. The diff wavelength warning threshold is now half of `max_width`.
 - 1.0: first version.

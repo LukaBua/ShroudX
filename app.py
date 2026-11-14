@@ -35,6 +35,7 @@ from starlette.staticfiles import StaticFiles
 import coords
 import data
 import processing
+from frame import Frame
 
 ROOT = Path(__file__).resolve().parent
 LOG = logging.getLogger(__name__)
@@ -136,6 +137,7 @@ class Products:
     metadata: dict[str, Any]
     blink: tuple[bytes, ...]
     stack: bytes
+    aligned: tuple[Frame, ...] = ()
 
 
 @dataclass
@@ -201,6 +203,9 @@ class ProductCache:
 
         with self.lock:
             size = sum(map(len, result.blink)) + len(result.stack)
+            size += sum(a.nbytes for f in result.aligned
+                        for a in (f.image, f.variance, f.mask, f.unreliable)
+                        if a is not None)
             if size <= self.max_bytes:
                 self.entries[key] = (time.monotonic() + self.ttl, result, size)
                 while (
@@ -314,13 +319,8 @@ def parse_selection(request: Request) -> tuple[Selection, str]:
     if wmin is not None and (wmin <= 0 or wmax <= 0 or wmin > wmax):
         raise bad_input("Wavelength limits must be positive and minimum <= maximum.", "wmin")
     mode = query_value(request, "mode") or "blink"
-    if mode not in ("blink", "stack"):
-        message = (
-            "Difference imaging is not available in the core API yet. Use blink or stack."
-            if mode == "diff"
-            else "Mode must be blink or stack."
-        )
-        raise bad_input(message, "mode")
+    if mode not in ("blink", "stack", "diff"):
+        raise bad_input("Mode must be blink, stack or diff.", "mode")
     return Selection(position, fov, detector, wmin, wmax), mode
 
 
@@ -498,7 +498,39 @@ def build_products(
         metadata,
         tuple(processing.render_png(f, stretch) for f in aligned),
         processing.render_png(stack.image, stretch),
+        tuple(aligned),
     )
+
+
+def difference_request(request: Request) -> tuple[int | None, int | None]:
+    """Validate explicit epoch syntax before any archive work."""
+    pair = integer(request, "epoch_a"), integer(request, "epoch_b")
+    for key, value in zip(("epoch_a", "epoch_b"), pair):
+        if value is not None and value < 0:
+            raise bad_input("Epoch identifiers must be non-negative integers.", key)
+    return pair
+
+
+def difference_product(product: Products, pair: tuple[int | None, int | None]):
+    """Validate against the sequence and delegate scientific work to processing."""
+    epochs = product.metadata["epochs"]
+    if len(epochs) < 2:
+        raise APIError(422, "insufficient_data", "At least two epochs are required for difference imaging.")
+    a = epochs[0]["epoch"] if pair[0] is None else pair[0]
+    b = epochs[-1]["epoch"] if pair[1] is None else pair[1]
+    valid = {ep["epoch"] for ep in epochs}
+    if a not in valid or b not in valid or a == b:
+        raise bad_input("Choose two distinct epoch identifiers from /api/meta.", "epoch_a/epoch_b")
+    return processing.difference_images(product.aligned, epoch_a=a, epoch_b=b)
+
+
+def difference_limit(diff: np.ndarray) -> float:
+    """Match the renderer's default symmetric percentile and supply it explicitly."""
+    values = np.abs(diff[np.isfinite(diff)])
+    if not values.size:
+        raise APIError(422, "insufficient_data", "The selected epochs have no overlapping usable pixels.")
+    limit = float(np.percentile(values, processing.DEFAULT_DIFF_PERCENTILE))
+    return limit if limit > 0 else float(np.max(values)) or 1.0
 
 
 def create_app(
@@ -628,9 +660,14 @@ def create_app(
 
     @application.get("/api/meta")
     def metadata_endpoint(request: Request):
-        selection, _ = parse_selection(request)
+        selection, view = parse_selection(request)
+        pair = difference_request(request) if view == "diff" else None
         product, hit = products(selection)
         body = copy.deepcopy(product.metadata)
+        if view == "diff":
+            diff = difference_product(product, pair)
+            difference_limit(diff.diff)
+            body["warnings"] = list(dict.fromkeys(body["warnings"] + list(diff.warnings)))
         if hit and body["data_source"] == "archive":
             body["data_source"] = "cache"
         return json_response(body)
@@ -638,6 +675,7 @@ def create_app(
     @application.get("/api/image.png")
     def image_endpoint(request: Request):
         selection, view = parse_selection(request)
+        pair = difference_request(request) if view == "diff" else None
         index = integer(request, "index") if view == "blink" else None
         if view == "blink" and (index is None or index < 0):
             raise bad_input("Blink mode requires a non-negative frame index.", "index")
@@ -645,6 +683,15 @@ def create_app(
         if view == "blink" and index >= len(product.blink):
             raise bad_input("Frame index is outside the selected sequence.", "index")
         content = product.blink[index] if view == "blink" else product.stack
+        extra_headers = {}
+        if view == "diff":
+            diff = difference_product(product, pair)
+            limit = difference_limit(diff.diff)
+            content = processing.render_diff_png(diff.diff, limit=limit)
+            with Image.open(io.BytesIO(content)) as image:
+                if list(reversed(image.size)) != product.metadata["image_shape"]:
+                    raise RuntimeError("Difference renderer returned an unexpected image size")
+            extra_headers["X-Diff-Limit"] = str(limit)
         source = product.metadata["data_source"]
         if hit and source == "archive":
             source = "cache"
@@ -655,6 +702,7 @@ def create_app(
                 "Cache-Control": "no-store",
                 "X-Data-Source": source,
                 "X-Synthetic": str(data_mode == "synthetic").lower(),
+                **extra_headers,
             },
         )
 
