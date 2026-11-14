@@ -308,6 +308,10 @@ def test_smoke_test_script_passes_and_reports_missing_motion(
     monkeypatch.setattr(data, "get_frames", lambda *a, **k: copy.deepcopy(tuple(synth_frames)))
     (tmp_path / "dummy.fits").write_bytes(b"0" * 1024)
     application = backend.create_app(mode="auto", cache_root=tmp_path)
+    # Explicitly simulate an older deployment without motion. The production
+    # application now provides this route; the test installs its own below.
+    application.router.routes = [route for route in application.router.routes
+                                 if getattr(route, "path", None) != "/api/motion"]
 
     with TestClient(application, raise_server_exceptions=False) as client:
         def client_requester(url: str, timeout: float) -> smoke_test.HTTPResponseData:

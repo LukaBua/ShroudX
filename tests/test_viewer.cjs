@@ -20,7 +20,7 @@ function harness() {
   }
   const document = {
     getElementById(id){if(!elements.has(id))elements.set(id,element());return elements.get(id);},
-    createElement:element, addEventListener(){}
+    createElement:element, createElementNS:(_namespace,_tag)=>element(), addEventListener(){}
   };
   for(const [id,value] of Object.entries({target:'WISE 0855-0714',mode:'blink',fov:'120',speed:'500',source:'api',inputMode:'name'}))document.getElementById(id).value=value;
   const location = {href:'http://localhost/',search:''};
@@ -72,6 +72,65 @@ test('API mode uses contract fields, preloads PNGs and excludes UI-only query pa
 test('empty coverage produces an empty state, preserving structured server errors',async()=>{
   const h=harness();h.context.fetch=async()=>({ok:false,status:404,json:async()=>({error:{code:'no_coverage',message:'No SPHEREx coverage here.'}})});
   await h.run('load()');assert.equal(h.el('placeholder').textContent,'No SPHEREx coverage here.');assert.equal(h.el('play').disabled,true);
+});
+
+test('difference view requests one image with selected epochs and disables playback',async()=>{
+  const h=harness();const m=h.run('previewMeta(params())');m.synthetic=false;m.data_source='cache';
+  m.warnings=['Colour changes may mimic motion.'];
+  h.el('mode').value='diff';h.el('epoch_a').value='1';h.el('epoch_b').value='0';
+  h.el('mode').onchange();assert.equal(h.el('epochFields').hidden,false);
+  h.context.fetch=async url=>{h.calls.push(url);return url.startsWith('/api/meta')?
+    {ok:true,json:async()=>m}:{ok:true,headers:{get:()=> 'image/png'},blob:async()=>new Blob(['fixture'],{type:'image/png'})};};
+  await h.run('load()');
+  assert.equal(h.calls.length,2);
+  for(const url of h.calls){const p=new URL(url,'http://localhost').searchParams;
+    assert.equal(p.get('mode'),'diff');assert.equal(p.get('epoch_a'),'1');assert.equal(p.get('epoch_b'),'0');
+    assert.equal(p.has('index'),false);
+  }
+  assert.equal(h.el('counter').textContent,'Epoch difference');
+  assert.equal(h.el('play').disabled,true);
+  assert.equal(h.el('diffCaption').hidden,false);
+  assert.equal(h.el('warnings').children[0].textContent,m.warnings[0]);
+  assert.equal(h.el('epoch_a').children.length,2);
+  assert.match(h.context.location.href,/epoch_a=1/);
+  h.el('mode').value='blink';h.el('mode').onchange();
+  assert.equal(h.el('epochFields').hidden,true);
+  assert.equal(h.run('params().has("epoch_a")'),false);
+  h.run('clearView()');assert.equal(h.el('diffCaption').hidden,true);
+});
+
+test('motion panel renders uncertainties, verdict and true-scale epoch overlay',()=>{
+  const h=harness();
+  const result={synthetic:false,image_shape:[20,20],epochs:[
+    {epoch:0,mjd:60900,x:10,y:10,radius_px:.1,sigma_arcsec:.615,n_frames:2},
+    {epoch:2,mjd:61100,x:9,y:8,radius_px:.2,sigma_arcsec:1.23,n_frames:3}],
+    fit:{pm_arcsec_per_yr:1,pm_sigma:.5,position_angle_deg:30,pa_sigma:10,
+      parallax_arcsec:null,parallax_sigma:null,chi2_reduced:null,n_epochs:2,
+      significance:2,uncertainty_scaled:false},
+    benchmark:{verdict:'UNINFORMATIVE',citation:'test-only',literature_pm_arcsec_per_yr:1,
+      literature_parallax_arcsec:.1},warnings:['Parallax is not constrained.']};
+  h.context.result=result;h.run('renderMotion(result)');
+  assert.equal(h.el('motionOverlay').hidden,false);
+  assert.equal(h.el('motionOverlay').viewBox,'0 0 20 20');
+  assert.equal(h.el('motionOverlay').children.length,4); // definitions, vector, two epochs
+  assert.equal(h.el('motionOverlay').children[3].children[1].r,'0.2');
+  assert.match(h.el('motionStatus').textContent,/not established/);
+  assert.equal(h.el('motionValues').children[0].children[1].textContent,'1.0000 ± 0.50000 arcsec/yr');
+  assert.equal(h.el('motionValues').children[9].children[1].textContent,'UNINFORMATIVE');
+  assert.equal(h.el('motionWarnings').children[0].textContent,result.warnings[0]);
+  h.run('clearView()');assert.equal(h.el('motionOverlay').hidden,true);
+  assert.equal(h.el('motionTable').hidden,true);
+});
+
+test('motion error leaves loaded observations intact',async()=>{
+  const h=harness();h.run('meta=previewMeta(params());active=params();controller=new AbortController()');
+  h.context.fetch=async url=>{h.calls.push(url);return{ok:false,status:422,
+    json:async()=>({error:{message:'Too few accepted centroids.'}})};};
+  await h.el('measureMotion').onclick();
+  assert.match(h.calls[0],/^\/api\/motion\?/);
+  assert.equal(h.el('motionStatus').textContent,'Too few accepted centroids.');
+  assert.equal(h.el('measureMotion').disabled,false);
+  assert.equal(h.run('meta.n_frames'),6);
 });
 
 test('display filters never alter API selection and reset to neutral',()=>{
