@@ -1,4 +1,3 @@
-# AI-assisted: implemented with Codex.
 """Core ShroudX API. Run with ``python -m uvicorn app:app``.
 
 All blocking work runs in FastAPI's worker threads (synchronous endpoints).

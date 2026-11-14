@@ -1,4 +1,3 @@
-# AI-assisted: written with AI pair-programming assistant.
 """SPHEREx frame processing: cleaning, grouping, epoch splitting, alignment, stacking, and PNG."""
 
 from __future__ import annotations

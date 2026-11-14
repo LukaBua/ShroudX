@@ -1,4 +1,3 @@
-# AI-assisted: written with Claude (Anthropic).
 """Decode the SPHEREx FLAGS bitmask.
 
 ``FLAG_BITS`` is copied from the ``MP_*`` keywords of a real FLAGS extension
