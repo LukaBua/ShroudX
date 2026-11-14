@@ -6,6 +6,7 @@ import pytest
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.name_resolve import NameResolveError
 
+import coords
 from coords import (
     OFFLINE_TARGETS,
     high_pm_hint,
@@ -115,3 +116,11 @@ def test_high_pm_hint() -> None:
     assert high_pm_hint(360.0) is None
     with pytest.raises(ValueError):
         high_pm_hint(-10.0)
+
+
+def test_lookup_offline_target_uses_aliases_and_returns_none_for_unknown() -> None:
+    entry = coords.lookup_offline_target("  barnards star ")
+    assert entry is coords.OFFLINE_TARGETS["Barnard's Star"]
+    wise = coords.OFFLINE_TARGETS["WISE 0855-0714"]
+    assert coords.lookup_offline_target("WISE 0855-0714") is wise
+    assert coords.lookup_offline_target("Not A Real Star") is None

@@ -1,8 +1,9 @@
 """Core ShroudX API. Run with ``python -m uvicorn app:app``.
 
 All blocking work runs in FastAPI's worker threads (synchronous endpoints).
-The pipeline lock coalesces duplicate requests and serializes access to data.py's
-in-process cache. Only rendered products are retained by this application cache.
+The product cache coalesces duplicate requests and serializes builds, which protects
+data.py's in-process cache, while cache hits are served without waiting for a build.
+Only rendered products are retained by this application cache.
 """
 
 from __future__ import annotations
@@ -71,29 +72,48 @@ class Products:
 
 
 class ProductCache:
-    """Bounded, expiring LRU; a lock prevents duplicate builds and cache races."""
+    """Bounded, expiring LRU with single-flight builds.
+
+    ``lock`` only guards the entry table, so cache hits are never blocked by a slow build.
+    ``build_lock`` serializes builds (data.py's in-process frame cache is not thread-safe) and
+    lets threads waiting on the same key reuse the result instead of building it again.
+    """
 
     def __init__(self, max_entries: int = 8, ttl: float = 300, max_bytes: int = 64 * 1024**2):
         self.max_entries, self.ttl, self.max_bytes = max_entries, ttl, max_bytes
         self.entries: OrderedDict[Any, tuple[float, Products, int]] = OrderedDict()
         self.lock = threading.RLock()
+        self.build_lock = threading.Lock()
+
+    def _lookup(self, key: Any) -> Products | None:
+        """Return a live entry (marking it recently used), purging expired ones. Needs lock."""
+        now = time.monotonic()
+        for old_key, (deadline, _, _) in list(self.entries.items()):
+            if deadline <= now:
+                del self.entries[old_key]
+        if key in self.entries:
+            self.entries.move_to_end(key)
+            return self.entries[key][1]
+        return None
 
     def get(self, key: Any, build: Callable[[], Products]) -> tuple[Products, bool]:
         with self.lock:
-            now = time.monotonic()
-            for old_key, (deadline, _, _) in list(self.entries.items()):
-                if deadline <= now:
-                    del self.entries[old_key]
-            if key in self.entries:
-                self.entries.move_to_end(key)
-                return self.entries[key][1], True
+            found = self._lookup(key)
+        if found is not None:
+            return found, True
+        with self.build_lock:
+            with self.lock:
+                found = self._lookup(key)  # another thread may have built it while we waited
+            if found is not None:
+                return found, True
             result = build()
             size = sum(map(len, result.blink)) + len(result.stack)
             if size <= self.max_bytes:
-                self.entries[key] = (time.monotonic() + self.ttl, result, size)
-                while (len(self.entries) > self.max_entries
-                       or sum(entry[2] for entry in self.entries.values()) > self.max_bytes):
-                    self.entries.popitem(last=False)
+                with self.lock:
+                    self.entries[key] = (time.monotonic() + self.ttl, result, size)
+                    while (len(self.entries) > self.max_entries
+                           or sum(entry[2] for entry in self.entries.values()) > self.max_bytes):
+                        self.entries.popitem(last=False)
             return result, False
 
 
@@ -177,8 +197,7 @@ def resolve(position: Position) -> dict[str, Any]:
     source = {"offline": "offline_table", "sesame": "simbad"}.get(result.source, result.source)
     if source not in ("offline_table", "simbad"):
         raise RuntimeError("Unknown coordinate provenance")
-    canonical = coords._OFFLINE_ALIASES.get(position.target.lower(), position.target)
-    profile = coords.OFFLINE_TARGETS.get(canonical)
+    profile = coords.lookup_offline_target(position.target)
     suggestion = coords.TARGET_PROFILES.get(profile.target_class) if profile else None
     fast = bool(profile and profile.pmra is not None and profile.pmdec is not None
                 and math.hypot(profile.pmra, profile.pmdec) > coords.HIGH_PM_THRESHOLD_MAS_YR)
@@ -315,13 +334,25 @@ def create_app(*, mode: str | None = None, cache_root: str | Path | None = None)
         # input; view/index do not alter the sequence or its shared display stretch.
         return cache.get(selection, lambda: build_products(selection, data_mode, root))
 
+    health_memo: dict[str, Any] = {"at": float("-inf"), "size": None}
+    health_lock = threading.Lock()
+
+    def cache_size_mb() -> float | None:
+        # Walking the whole cache on every probe is wasteful, so reuse a recent measurement.
+        with health_lock:
+            if time.monotonic() - health_memo["at"] >= 30:
+                try:
+                    health_memo["size"] = (
+                        sum(p.stat().st_size for p in root.rglob("*") if p.is_file()) / 1_000_000
+                    )
+                except OSError:
+                    health_memo["size"] = None
+                health_memo["at"] = time.monotonic()
+            return health_memo["size"]
+
     @application.get("/health")
     def health():
-        try:
-            size = sum(p.stat().st_size for p in root.rglob("*") if p.is_file()) / 1_000_000
-        except OSError:
-            size = None
-        return json_response(dict(status="ok", data_mode=data_mode, cache_size_mb=size))
+        return json_response(dict(status="ok", data_mode=data_mode, cache_size_mb=cache_size_mb()))
 
     @application.get("/api/resolve")
     def resolve_endpoint(request: Request):

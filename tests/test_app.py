@@ -274,3 +274,56 @@ def test_product_cache_expiry_and_eviction(monkeypatch):
     clock[0] = 11
     assert cache.get("a", build)[1] is False
     assert len(builds) == 4
+
+
+def test_product_cache_hits_are_not_blocked_by_a_slow_build():
+    import threading
+    import time
+
+    cache = backend.ProductCache()
+    cache.get("fast", lambda: backend.Products({}, (b"p",), b"s"))
+    started, release = threading.Event(), threading.Event()
+
+    def slow_build():
+        started.set()
+        release.wait(5)
+        return backend.Products({}, (b"p",), b"s")
+
+    worker = threading.Thread(target=lambda: cache.get("slow", slow_build))
+    worker.start()
+    try:
+        assert started.wait(5)
+        began = time.monotonic()
+        assert cache.get("fast", lambda: 1 / 0)[1] is True  # served while "slow" is building
+        assert time.monotonic() - began < 1.0
+    finally:
+        release.set()
+        worker.join(5)
+
+
+def test_product_cache_waiters_reuse_a_build_for_the_same_key():
+    import threading
+
+    cache = backend.ProductCache()
+    builds, results = [], []
+    started, release = threading.Event(), threading.Event()
+
+    def build():
+        builds.append(1)
+        started.set()
+        release.wait(5)
+        return backend.Products({}, (b"p",), b"s")
+
+    def request():
+        results.append(cache.get("k", build)[1])
+
+    threads = [threading.Thread(target=request) for _ in range(3)]
+    threads[0].start()
+    assert started.wait(5)
+    for t in threads[1:]:
+        t.start()
+    release.set()
+    for t in threads:
+        t.join(5)
+    assert len(builds) == 1
+    assert sorted(results) == [False, True, True]

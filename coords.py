@@ -279,6 +279,19 @@ def position_at_epoch(
     return new_ra, new_dec
 
 
+def lookup_offline_target(
+    name: str,
+    offline_table: Optional[dict[str, OfflineEntry]] = None,
+) -> Optional[OfflineEntry]:
+    """Return the offline-table entry for ``name`` (aliases allowed), or None if unknown."""
+    table = offline_table if offline_table is not None else OFFLINE_TARGETS
+    cleaned = name.strip()
+    canonical = _OFFLINE_ALIASES.get(cleaned.lower())
+    if canonical is None and cleaned in table:
+        canonical = cleaned
+    return table.get(canonical) if canonical else None
+
+
 def _resolve_from_offline_entry(
     canonical_name: str,
     entry: OfflineEntry,

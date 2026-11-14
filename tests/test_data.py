@@ -598,3 +598,123 @@ def test_fetch_cutouts_cli(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> N
     assert len(cached_dirs) == 1
     assert (cached_dirs[0] / "0001.fits").is_file()
     assert (cached_dirs[0] / "index.csv").is_file()
+
+
+def _partial_failure_setup(tmp_path: Path):
+    """Four records where the third cutout can be made to fail on demand."""
+    records = [
+        (f"spherex/l2b-v20/f{i}.fits", 60900.0 + 40.0 * i, "SPHEREx-D5") for i in range(4)
+    ]
+    state = {"fail_f2": True}
+
+    def tap(_q: str) -> Table:
+        return Table(rows=records, names=("uri", "mjd", "bandpass"))
+
+    def fetcher(url: str) -> bytes:
+        if "f2.fits" in url and state["fail_f2"]:
+            raise OSError("cutout dropped")
+        return _hdul_to_bytes(_make_cutout_hdul(mjd=60900.0))
+
+    kwargs = dict(
+        cache_root=tmp_path,
+        tap_query=tap,
+        fetcher=fetcher,
+        retries=1,
+        sleep_fn=lambda _s: None,
+        use_memory_cache=False,
+    )
+    return state, kwargs
+
+
+def test_partial_download_is_not_served_as_complete(tmp_path: Path) -> None:
+    """A cache left incomplete by failed downloads is flagged, retried, and then healed."""
+    state, kwargs = _partial_failure_setup(tmp_path)
+    ra, dec = 133.76, -7.24
+
+    first = get_frames(ra, dec, 120.0, mode="auto", **kwargs)
+    assert len(first) == 3
+    assert all(f.meta["failed_downloads"] == 1 for f in first)
+
+    # Later request, IRSA unreachable: serve the partial cache but keep the warning.
+    def unreachable(_q: str) -> Any:
+        raise ConnectionError("down")
+
+    offline = {**kwargs, "tap_query": unreachable}
+    served = get_frames(ra, dec, 120.0, mode="auto", **offline)
+    assert len(served) == 3
+    assert all(f.meta["failed_downloads"] == 1 for f in served)
+    assert all(f.meta["data_source"] == "cache" for f in served)
+
+    # Offline cache mode never touches the network but still reports the gap.
+    cached_only = get_frames(ra, dec, 120.0, mode="cache", cache_root=tmp_path)
+    assert all(f.meta["failed_downloads"] == 1 for f in cached_only)
+
+    # IRSA healthy again: auto mode retries the missing cutout and clears the marker.
+    state["fail_f2"] = False
+    healed = get_frames(ra, dec, 120.0, mode="auto", **kwargs)
+    assert len(healed) == 4
+    assert all("failed_downloads" not in f.meta for f in healed)
+    key_dir = next(p for p in tmp_path.iterdir() if p.is_dir())
+    assert not (key_dir / data.INCOMPLETE_MARKER).exists()
+
+    # And a complete cache is now served without retrying anything.
+    final = get_frames(ra, dec, 120.0, mode="auto", **offline)
+    assert len(final) == 4
+
+
+def test_live_mode_bypasses_memory_cache_and_cache_is_lru(tmp_path: Path) -> None:
+    calls: list[str] = []
+
+    def tap(_q: str) -> Table:
+        calls.append("tap")
+        return Table(rows=[("spherex/l2b-v20/f0.fits", 60900.0, "SPHEREx-D5")],
+                     names=("uri", "mjd", "bandpass"))
+
+    def fetcher(_url: str) -> bytes:
+        return _hdul_to_bytes(_make_cutout_hdul())
+
+    kw = dict(cache_root=tmp_path, tap_query=tap, fetcher=fetcher, retries=1,
+              sleep_fn=lambda _s: None)
+    get_frames(133.76, -7.24, 120.0, mode="live", **kw)
+    get_frames(133.76, -7.24, 120.0, mode="live", **kw)
+    assert calls == ["tap", "tap"]  # second live call asked the archive again
+
+    clear_memory_cache()
+    get_frames(133.76, -7.24, 120.0, mode="auto", **kw)
+    for i in range(data._MEMORY_CACHE_MAX - 1):
+        get_frames(10.0 + i, 5.0, 120.0, mode="synthetic", cache_root=tmp_path)
+    first_key = next(iter(data._MEMORY_CACHE))
+    get_frames(133.76, -7.24, 120.0, mode="auto", **kw)  # touch the oldest entry
+    get_frames(200.0, 5.0, 120.0, mode="synthetic", cache_root=tmp_path)  # forces one eviction
+    assert first_key in data._MEMORY_CACHE
+
+
+def _hdul_with_scalar_wavelength(**header: Any) -> fits.HDUList:
+    """A cutout whose WCS-WAVE has no usable spectral WCS, only the given scalar keywords."""
+    hdul = _make_cutout_hdul()
+    wave_hdr = fits.Header()
+    wave_hdr["CRVAL1W"] = 4.1  # reference value only; must never be read as the wavelength
+    for key, value in header.items():
+        wave_hdr[key] = value
+    index = hdul.index_of("WCS-WAVE")
+    hdul[index] = fits.ImageHDU(header=wave_hdr, name="WCS-WAVE")
+    return hdul
+
+
+def test_wavelength_never_falls_back_to_crval_or_implausible_values() -> None:
+    with pytest.raises(ValueError, match="wavelength"):
+        frame_from_hdul(_hdul_with_scalar_wavelength(), ra=133.76, dec=-7.24, mjd=60900.0)
+    with pytest.raises(ValueError, match="wavelength"):
+        frame_from_hdul(
+            _hdul_with_scalar_wavelength(WAVELEN=4200.0), ra=133.76, dec=-7.24, mjd=60900.0
+        )
+    with pytest.raises(ValueError, match="wavelength"):
+        frame_from_hdul(
+            _hdul_with_scalar_wavelength(WAVELEN=4.2, CUNIT1W="parsec"),
+            ra=133.76, dec=-7.24, mjd=60900.0,
+        )
+    ok = frame_from_hdul(
+        _hdul_with_scalar_wavelength(WAVELEN=4200.0, CUNIT1W="nm"),
+        ra=133.76, dec=-7.24, mjd=60900.0,
+    )
+    assert ok.wavelength == pytest.approx(4.2)

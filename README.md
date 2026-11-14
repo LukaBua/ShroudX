@@ -23,10 +23,11 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-For linting during development, also install `ruff` (or `pip install -e .[dev]`):
+For running the tests and linting, install the development requirements instead
+(this adds `pytest`, `ruff`, and `httpx`):
 
 ```powershell
-.\.venv\Scripts\python.exe -m pip install ruff
+.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
 
 ### 2. Choose `SPHX_MODE`
@@ -35,9 +36,9 @@ Set `SPHX_MODE` before starting the server (`SPHX_CACHE_DIR` optionally override
 
 | `SPHX_MODE` | Behaviour |
 | --- | --- |
-| `auto` *(default)* | Serves from the local disk cache (`cache/`) if a matching or larger bucket exists; otherwise queries IRSA TAP and caches downloaded cutouts. Raises `archive_unreachable` (`502`) if IRSA cannot be reached. Never falls back to synthetic data. |
+| `auto` *(default)* | Serves from the local disk cache (`cache/`) if a matching or larger bucket exists; otherwise queries IRSA TAP and caches downloaded cutouts. If an earlier download was partial (some cutouts failed), it retries the missing cutouts; if IRSA is unreachable it serves the partial cache with an incomplete-sequence warning. Raises `archive_unreachable` (`502`) if IRSA cannot be reached and nothing is cached. Never falls back to synthetic data. |
 | `cache` | Offline mode using only existing cached cutouts. Returns `404` (`not_cached`) when a position is missing from disk. |
-| `live` | Queries IRSA TAP and downloads cutouts directly (bypassing existing cache hits, while updating the disk cache). |
+| `live` | Queries IRSA TAP and downloads cutouts directly (bypassing the in-process frame cache and re-querying the archive, while reusing already-valid files on disk and updating the disk cache). |
 | `synthetic` | Explicit simulated-data mode generating a synthetic moving source and wavelength-dependent star. Every JSON response includes `"synthetic": true`, PNG responses include `X-Synthetic: true`, and the UI displays a `SYNTHETIC DATA` banner. |
 
 ### 3. Pre-fetch demo targets (`scripts/fetch_cutouts.py`)
@@ -50,8 +51,9 @@ Pre-download and cache SPHEREx cutouts from IRSA at 480 arcsec (from which small
 .\.venv\Scripts\python.exe scripts/fetch_cutouts.py --target "Barnard's Star" --fov 480
 .\.venv\Scripts\python.exe scripts/fetch_cutouts.py --target "Epsilon Indi B" --fov 480
 
-# Pre-fetch by coordinates (note '=' when passing a negative --dec value)
-.\.venv\Scripts\python.exe scripts/fetch_cutouts.py --ra 08h55m10.831s --dec=-07d14m42.53s --fov 480
+# Pre-fetch by coordinates (note '=' when passing a negative --dec value).
+# 133.76 / -7.24 is WISE 0855's 2026 position; its catalog name encodes an older epoch.
+.\.venv\Scripts\python.exe scripts/fetch_cutouts.py --ra 133.76 --dec=-7.24 --fov 480
 ```
 
 CLI options: `--target`, `--ra`, `--dec`, `--fov` (default `480.0`), `--cache-dir` (default `cache`), `--workers` (`1`–`5`, default `5`), `--retries` (default `4`), `--mode` (`live`, `auto`, `cache`, default `live`).
