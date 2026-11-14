@@ -1,0 +1,135 @@
+{
+  "epochs": [
+    {
+      "epoch": 1,
+      "mjd": 60986.856669,
+      "ra": 133.7601313304642,
+      "dec": -7.242192788681053,
+      "sigma_arcsec": 1.5325782571913582,
+      "n_frames": 1,
+      "x": 23.78690259970333,
+      "y": 24.003973948108165,
+      "radius_px": 0.249199716616481
+    },
+    {
+      "epoch": 2,
+      "mjd": 61022.231084,
+      "ra": 133.75992442512867,
+      "dec": -7.241922729328078,
+      "sigma_arcsec": 1.3672092711873174,
+      "n_frames": 1,
+      "x": 23.907051620914565,
+      "y": 23.845890354759305,
+      "radius_px": 0.22231045059956378
+    }
+  ],
+  "fit": {
+    "pm_arcsec_per_yr": 12.608649961131709,
+    "pm_sigma": 20.515419828864637,
+    "position_angle_deg": 322.76385844003875,
+    "pa_sigma": 94.56336344939054,
+    "parallax_arcsec": null,
+    "parallax_sigma": null,
+    "chi2_reduced": null,
+    "n_epochs": 2,
+    "significance": 0.6145938063325266,
+    "uncertainty_scaled": false
+  },
+  "benchmark": {
+    "literature_pm_arcsec_per_yr": 8.151545861368874,
+    "literature_parallax_arcsec": 0.439,
+    "verdict": "UNINFORMATIVE",
+    "citation": "2021ApJS..253....7K"
+  },
+  "warnings": [
+    "High proper-motion target (8.15 arcsec/yr): position propagated from epoch 2000.0 to SPHEREx epoch 2026.0 (source: 2021ApJS..253....7K).",
+    "This field may be too small for a fast-moving target; consider 300 arcseconds.",
+    "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
+    "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+    "Epoch 1: All 1 frames in epoch rejected (SNR < 5.0).",
+    "Epoch 4: All 4 frames in epoch rejected (SNR < 5.0).",
+    "Rejected 9 frame(s) below SNR threshold (5.0).",
+    "Fewer than 3 epochs (2): parallax and proper motion are degenerate. Fit proper motion only (parallax not fitted).",
+    "Reduced chi-squared is undefined: no residual degrees of freedom."
+  ],
+  "synthetic": false,
+  "image_shape": [
+    48,
+    48
+  ],
+  "provenance": {
+    "data_mode": "cache",
+    "request": "/api/motion?target=WISE+0855&fov=294.0&detector=5&wmin=4.1447736280634215&wmax=4.224863273486272",
+    "frames": [
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W19_1B/l2b-v27-2026-197/5/level2_2025W19_1B_0231_4D5_spx_l2b-v27-2026-197.fits",
+        "mjd": 60801.450117,
+        "wavelength_um": 4.1447736280634215,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_1D5_spx_l2b-v27-2026-247.fits",
+        "mjd": 60986.853684,
+        "wavelength_um": 4.153165067839173,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_2D5_spx_l2b-v27-2026-247.fits",
+        "mjd": 60986.855176,
+        "wavelength_um": 4.1889694624922456,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W45_2A/l2b-v27-2026-247/5/level2_2025W45_2A_0292_3D5_spx_l2b-v27-2026-247.fits",
+        "mjd": 60986.856669,
+        "wavelength_um": 4.224863273486272,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0391_1D5_spx_l2b-v27-2026-210.fits",
+        "mjd": 61021.8922,
+        "wavelength_um": 4.153135419421957,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0479_1D5_spx_l2b-v27-2026-210.fits",
+        "mjd": 61022.231084,
+        "wavelength_um": 4.188809205953361,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2025W50_2A/l2b-v27-2026-210/5/level2_2025W50_2A_0512_1D5_spx_l2b-v27-2026-210.fits",
+        "mjd": 61022.368105,
+        "wavelength_um": 4.224682820966444,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0519_1D5_spx_l2b-v27-2026-244.fits",
+        "mjd": 61162.673655,
+        "wavelength_um": 4.222119647081147,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_1D5_spx_l2b-v27-2026-244.fits",
+        "mjd": 61163.215717,
+        "wavelength_um": 4.180312170754152,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W18_2A/l2b-v27-2026-244/5/level2_2026W18_2A_0663_2D5_spx_l2b-v27-2026-244.fits",
+        "mjd": 61163.217209,
+        "wavelength_um": 4.216367784889965,
+        "version": 27
+      },
+      {
+        "uri": "ibe/data/spherex/dr1/level2/2026W20_1A/l2b-v27-2026-246/5/level2_2026W20_1A_0214_1D5_spx_l2b-v27-2026-246.fits",
+        "mjd": 61171.567192,
+        "wavelength_um": 4.222164081796975,
+        "version": 27
+      }
+    ],
+    "benchmarks_sha256": "cfa9f3635c3a893db86caf04ace1716cccc31a3bf91928cd91ca9632e0e5614e",
+    "command": "curl.exe --fail \"http://127.0.0.1:8000/api/motion?target=WISE+0855&fov=294.0&detector=5&wmin=4.1447736280634215&wmax=4.224863273486272\" --output \"results/motion-1bbfa25ca03c736e8c41.json\"",
+    "instructions": "Run the server in the recorded data mode with the same data/cache and code."
+  }
+}
