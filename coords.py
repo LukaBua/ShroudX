@@ -1,5 +1,3 @@
-"""Coordinate parsing, name resolution, and proper-motion propagation for SPHEREx."""
-
 from __future__ import annotations
 
 import math
@@ -18,9 +16,9 @@ HIGH_PM_THRESHOLD_MAS_YR: float = 1000.0  # 1 arcsec / yr = 1000 mas / yr
 # Heuristic mapping of target astrophysical classes to SPHEREx detectors (1-6).
 # Used strictly as an initial UI suggestion that the user can override.
 TARGET_PROFILES: dict[str, int] = {
-    "cold brown dwarf": 5,  # 3.83 - 4.41 um (CH4 / CO window, peak flux for Y/late-T)
-    "m dwarf": 2,           # 1.10 - 1.62 um (near-IR J/H stellar continuum peak)
-    "t tauri star": 3,      # 1.63 - 2.41 um (K-band inner disk excess & veil)
+    "cold brown dwarf": 5,     # 3.83 - 4.41 um (CH4 / CO window, peak flux for Y/late-T)
+    "m dwarf": 2,              # 1.10 - 1.62 um (near-IR J/H stellar continuum peak)
+    "t tauri star": 3,         # 1.63 - 2.41 um (K-band inner disk excess & veil)
     "agb / mira variable": 4,  # 2.42 - 3.82 um (molecular bands & warm dust)
     "solar system body": 1,    # 0.75 - 1.09 um (reflected solar continuum)
 }
@@ -35,8 +33,9 @@ class OfflineEntry:
         dec: ICRS Declination in decimal degrees at ref_epoch.
         pmra: Proper motion in RA (mu_alpha * cos(dec)) in mas/yr.
         pmdec: Proper motion in Dec (mu_delta) in mas/yr.
-        ref_epoch: Reference epoch as a decimal Julian year (e.g., 2000.0 or 2016.0).
+        ref_epoch: Reference epoch as a decimal Julian year (e.g., 2000.0).
         target_class: Optional heuristic key in TARGET_PROFILES.
+        citation: ADS bibcode citation for position and proper motion.
     """
 
     ra: Optional[float]
@@ -45,24 +44,55 @@ class OfflineEntry:
     pmdec: Optional[float]
     ref_epoch: Optional[float]
     target_class: Optional[str] = None
+    citation: Optional[str] = None
 
 
-# Numeric values intentionally left as None per specification; populate from literature.
+# Literature values populated from Demo targets data .xlsx (Gaia EDR3, Kirkpatrick+2021, van Leeuwen 2007).
 OFFLINE_TARGETS: dict[str, OfflineEntry] = {
     "WISE 0855-0714": OfflineEntry(
-        ra=None, dec=None, pmra=None, pmdec=None, ref_epoch=None, target_class="cold brown dwarf"
+        ra=133.818908,
+        dec=-7.247048,
+        pmra=-8123.700,
+        pmdec=673.200,
+        ref_epoch=2000.0,
+        target_class="cold brown dwarf",
+        citation="2021ApJS..253....7K",
     ),
     "Barnard's Star": OfflineEntry(
-        ra=None, dec=None, pmra=None, pmdec=None, ref_epoch=None, target_class="m dwarf"
+        ra=269.452077,
+        dec=4.693365,
+        pmra=-801.551,
+        pmdec=10362.394,
+        ref_epoch=2000.0,
+        target_class="m dwarf",
+        citation="2020yCat.1350....0G",
     ),
     "Epsilon Indi B": OfflineEntry(
-        ra=None, dec=None, pmra=None, pmdec=None, ref_epoch=None, target_class="cold brown dwarf"
+        ra=331.044147,
+        dec=-56.782844,
+        pmra=3981.977,
+        pmdec=-2466.832,
+        ref_epoch=2000.0,
+        target_class="cold brown dwarf",
+        citation="2020yCat.1350....0G",
     ),
     "RW Aurigae": OfflineEntry(
-        ra=None, dec=None, pmra=None, pmdec=None, ref_epoch=None, target_class="t tauri star"
+        ra=76.956526,
+        dec=30.401438,
+        pmra=7.230,
+        pmdec=-20.330,
+        ref_epoch=2000.0,
+        target_class="t tauri star",
+        citation="2007A&A...474..653V",
     ),
     "R Draconis": OfflineEntry(
-        ra=None, dec=None, pmra=None, pmdec=None, ref_epoch=None, target_class="agb / mira variable"
+        ra=248.167611,
+        dec=66.754979,
+        pmra=-20.643,
+        pmdec=6.149,
+        ref_epoch=2000.0,
+        target_class="agb / mira variable",
+        citation="2020yCat.1350....0G",
     ),
 }
 
@@ -73,6 +103,7 @@ _OFFLINE_ALIASES: dict[str, str] = {
     "wise 0855": "WISE 0855-0714",
     "barnard's star": "Barnard's Star",
     "barnards star": "Barnard's Star",
+    "barnard star": "Barnard's Star",
     "epsilon indi b": "Epsilon Indi B",
     "eps ind b": "Epsilon Indi B",
     "rw aurigae": "RW Aurigae",
@@ -131,6 +162,7 @@ def parse_position(ra: float | int | str, dec: float | int | str) -> tuple[float
     ra_deg = _parse_ra(ra)
     dec_deg = _parse_dec(dec)
     return ra_deg, dec_deg
+
 
 def _parse_ra(ra: float | int | str) -> float:
     if isinstance(ra, (int, float)) and not isinstance(ra, bool):
@@ -191,7 +223,6 @@ def _parse_dec(dec: float | int | str) -> float:
     if not math.isfinite(dec_deg) or not (-90.0 <= dec_deg <= 90.0):
         raise ValueError(f"Dec must satisfy -90 <= Dec <= 90 degrees (got {dec_deg}).")
     return dec_deg
-
 
 
 def position_at_epoch(
@@ -262,7 +293,7 @@ def _resolve_from_offline_entry(
 
     ra = float(entry.ra)
     dec = float(entry.dec)
-    warnings: list[str] = []
+    warnings_list: list[str] = []
     pm_known = (
         entry.pmra is not None
         and entry.pmdec is not None
@@ -284,13 +315,14 @@ def _resolve_from_offline_entry(
                 target_epoch=target_epoch,
             )
             total_pm_arcsec = total_pm_mas_yr / 1000.0
-            warnings.append(
+            cite_note = f" (source: {entry.citation})" if entry.citation else ""
+            warnings_list.append(
                 f"High proper-motion target ({total_pm_arcsec:.2f} arcsec/yr): "
                 f"position propagated from epoch {entry.ref_epoch:.1f} to SPHEREx "
-                f"epoch {target_epoch:.1f}."
+                f"epoch {target_epoch:.1f}{cite_note}."
             )
     else:
-        warnings.append(
+        warnings_list.append(
             f"Proper motion parameters are not set for '{canonical_name}'; "
             "using catalog reference coordinates without epoch propagation."
         )
@@ -300,7 +332,7 @@ def _resolve_from_offline_entry(
         dec=dec,
         source="offline",
         pm_known=pm_known,
-        warnings=warnings,
+        warnings=warnings_list,
     )
 
 
@@ -311,12 +343,9 @@ def resolve_name(
 ) -> ResolvedTarget:
     """Resolve an astronomical object name to ICRS coordinates.
 
-    Checks the offline lookup table first if the network fails (or if the target
-    is a known high-proper-motion benchmark in the offline table with populated
-    proper motion), and queries Sesame (SIMBAD/CDS) via SkyCoord.from_name.
-    Note: SkyCoord.from_name returns coordinates only (without proper motion),
-    so if an offline entry exists with populated coordinates, its proper motion
-    awareness is preserved.
+    Checks the offline lookup table first if the target is a known benchmark
+    with populated coordinates and proper motion, and otherwise queries Sesame
+    (SIMBAD/CDS) via SkyCoord.from_name.
 
     Args:
         name: Object identifier (e.g., 'WISE 0855-0714', "Barnard's Star").
@@ -339,18 +368,15 @@ def resolve_name(
     if canonical_key is None and cleaned in table:
         canonical_key = cleaned
 
-    # Check if we have a populated offline entry (which includes proper motion data
-    # that SkyCoord.from_name does not retrieve).
     offline_entry = table.get(canonical_key) if canonical_key else None
     if offline_entry is not None and offline_entry.ra is not None and offline_entry.dec is not None:
         return _resolve_from_offline_entry(canonical_key or cleaned, offline_entry, target_epoch)
 
-    # Attempt online resolution via Astropy Sesame (SIMBAD/CDS).
     try:
         coord = SkyCoord.from_name(cleaned)
         ra_deg = float(coord.icrs.ra.deg)
         dec_deg = float(coord.icrs.dec.deg)
-        warnings = [
+        warnings_list = [
             "Resolved via online Sesame lookup (coordinates only; proper motion not "
             "automatically propagated). Verify field of view for fast-moving objects."
         ]
@@ -359,11 +385,10 @@ def resolve_name(
             dec=dec_deg,
             source="sesame",
             pm_known=False,
-            warnings=warnings,
+            warnings=warnings_list,
         )
     except (NameResolveError, Exception) as net_exc:
         if offline_entry is not None:
-            # Will raise a clear error explaining the offline entry is unpopulated (None)
             return _resolve_from_offline_entry(canonical_key or cleaned, offline_entry, target_epoch)
         raise ValueError(
             f"Could not resolve target name '{cleaned}' via SIMBAD/CDS or offline table."

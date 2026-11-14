@@ -1,5 +1,3 @@
-"""Tests for coords.py with all network calls mocked."""
-
 from __future__ import annotations
 
 import math
@@ -7,9 +5,8 @@ import pytest
 from astropy.coordinates import SkyCoord
 from astropy.coordinates.name_resolve import NameResolveError
 
-import coords
 from coords import (
-    OfflineEntry,
+    OFFLINE_TARGETS,
     high_pm_hint,
     parse_position,
     position_at_epoch,
@@ -19,9 +16,6 @@ from coords import (
 
 def test_parse_position_wise_0855_formats_match() -> None:
     """Decimal and both sexagesimal formats yield identical coordinates for WISE 0855."""
-    # Exact conversion of 08h55m10.831s, -07d14m42.53s:
-    # RA = (8 + 55/60 + 10.831/3600) * 15 = 133.79512916666667 deg
-    # Dec = -(7 + 14/60 + 42.53/3600) = -7.2451472222222225 deg
     expected_ra = (8.0 + 55.0 / 60.0 + 10.831 / 3600.0) * 15.0
     expected_dec = -(7.0 + 14.0 / 60.0 + 42.53 / 3600.0)
 
@@ -61,13 +55,6 @@ def test_parse_position_out_of_range_and_invalid_raises(
 
 def test_position_at_epoch_matches_hand_computed() -> None:
     """Proper-motion propagation matches hand calculation including cos(dec) factor."""
-    # Hand-computed setup:
-    # Initial: RA = 120.0 deg, Dec = 60.0 deg (so cos(Dec) = 0.5)
-    # Proper motion: pmra = +3600.0 mas/yr (+0.001 deg/yr sky motion),
-    #                pmdec = -3600.0 mas/yr (-0.001 deg/yr)
-    # Time baseline: ref_epoch = 2016.0, target_epoch = 2026.0 -> dt = 10.0 yr
-    # Expected d_dec = -0.001 * 10 = -0.01 deg -> new_dec = 59.99 deg
-    # Expected d_ra  = (+0.001 * 10) / cos(60 deg) = +0.01 / 0.5 = +0.02 deg -> new_ra = 120.02 deg
     new_ra, new_dec = position_at_epoch(
         ra=120.0,
         dec=60.0,
@@ -81,35 +68,33 @@ def test_position_at_epoch_matches_hand_computed() -> None:
 
 
 def test_offline_lookup_works_with_network_disabled(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Offline lookup succeeds when network is disabled and propagates high PM."""
+    """Offline lookup succeeds for all 5 demo targets when network is disabled."""
     def _fail_network(name: str) -> SkyCoord:
         raise NameResolveError(f"Network disabled for test: {name}")
 
     monkeypatch.setattr(SkyCoord, "from_name", _fail_network)
 
-    # Inject a test offline table with populated values to test offline resolution & propagation
-    # without hardcoding fabricated numbers in the production module.
-    mock_table = {
-        "WISE 0855-0714": OfflineEntry(
-            ra=120.0,
-            dec=60.0,
-            pmra=3600.0,   # > 1000 mas/yr threshold
-            pmdec=-3600.0,
-            ref_epoch=2016.0,
-            target_class="cold brown dwarf",
-        )
-    }
+    # High-PM target: WISE 0855-0714 propagated from 2000.0 to 2026.0
+    wise = resolve_name("WISE 0855-0714", target_epoch=2026.0)
+    assert wise.source == "offline"
+    assert wise.pm_known is True
+    assert math.isclose(wise.ra, 133.759765, abs_tol=1e-5)
+    assert math.isclose(wise.dec, -7.242186, abs_tol=1e-5)
+    assert any("propagated" in w for w in wise.warnings)
 
-    resolved = resolve_name(
-        "WISE 0855-0714",
-        target_epoch=2026.0,
-        offline_table=mock_table,
-    )
-    assert resolved.source == "offline"
-    assert resolved.pm_known is True
-    assert math.isclose(resolved.ra, 120.02, abs_tol=1e-9)
-    assert math.isclose(resolved.dec, 59.99, abs_tol=1e-9)
-    assert any("propagated" in w for w in resolved.warnings)
+    # Low-PM target: RW Aurigae stays at J2000 reference position
+    rw_aur = resolve_name("RW Aurigae", target_epoch=2026.0)
+    assert rw_aur.source == "offline"
+    assert rw_aur.pm_known is True
+    assert math.isclose(rw_aur.ra, 76.956526, abs_tol=1e-6)
+    assert math.isclose(rw_aur.dec, 30.401438, abs_tol=1e-6)
+    assert len(rw_aur.warnings) == 0
+
+    # Ensure all 5 canonical targets are populated and resolve cleanly offline
+    for target_name in OFFLINE_TARGETS:
+        res = resolve_name(target_name, target_epoch=2026.0)
+        assert res.source == "offline"
+        assert res.pm_known is True
 
 
 def test_unknown_name_raises_clear_error(monkeypatch: pytest.MonkeyPatch) -> None:
