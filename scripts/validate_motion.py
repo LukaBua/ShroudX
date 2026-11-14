@@ -25,11 +25,11 @@ from __future__ import annotations
 
 import argparse
 import csv
+import shlex
+import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-import shlex
-import sys
 from typing import Sequence
 
 import numpy as np
@@ -42,9 +42,9 @@ if str(REPO_ROOT) not in sys.path:
 
 import coords  # noqa: E402
 import data  # noqa: E402
+import processing  # noqa: E402
 from frame import Frame  # noqa: E402
 from motion import MotionFitResult, measure_and_fit_epochs  # noqa: E402
-import processing  # noqa: E402
 
 # Threshold (arcsec/yr) below which a catalog star is effectively stationary at
 # SPHEREx resolution (0.05"/yr = 50 mas/yr = 0.008 pix/yr at 6.15"/pix).
@@ -159,6 +159,28 @@ def load_benchmarks(csv_path: Path) -> list[BenchmarkTarget]:
             else:
                 parallax = None
 
+            ref_epoch_str = row.get("ref_epoch", "")
+            if ref_epoch_str:
+                if np.hypot(pm_ra, pm_dec) >= 1.0:
+                    ra, dec = coords.position_at_epoch(
+                        ra,
+                        dec,
+                        pm_ra * 1000.0,
+                        pm_dec * 1000.0,
+                        float(ref_epoch_str),
+                        coords.DEFAULT_SURVEY_EPOCH,
+                    )
+            else:
+                entry = coords.lookup_offline_target(name)
+                if (
+                    entry is not None
+                    and entry.ra is not None
+                    and entry.dec is not None
+                    and np.hypot(ra - entry.ra, dec - entry.dec) < 1e-3
+                ):
+                    resolved = coords.resolve_name(name)
+                    ra, dec = resolved.ra, resolved.dec
+
             citation = row.get("citation", "")
             targets.append(
                 BenchmarkTarget(
@@ -220,7 +242,8 @@ def investigate_systematics(
     if status == "DISAGREE":
         if fit.n_epochs < 3 and not fit.parallax_fixed:
             notes.append(
-                "SYSTEMATIC: <3 epochs without fixed parallax; parallax shift aliases into proper motion."
+                "SYSTEMATIC: <3 epochs without fixed parallax; "
+                "parallax shift aliases into proper motion."
             )
         if fit.reduced_chi2 > 1.5:
             notes.append(
@@ -248,28 +271,34 @@ def investigate_systematics(
 def select_best_epoch_group(
     frames: Sequence[Frame],
 ) -> tuple[list[list[Frame]], list[Frame], str]:
-    """Clean, group by detector/wavelength, split into epochs, and align the most populated group."""
+    """Clean, group by detector/wavelength, split epochs, and align the best group."""
+    if not frames:
+        return [], [], "N/A"
+
     cleaned = [processing.clean_frame(f) for f in frames]
-    groups = processing.group_frames(cleaned)
+    best_grp: processing.GroupResult | None = None
+    best_score = (-1, -1)
 
-    best_epochs: list[list[Frame]] = []
-    best_flat: list[Frame] = []
-    best_wave_label = "N/A"
+    for det in sorted({int(f.detector) for f in cleaned}):
+        grp_res = processing.group_frames(cleaned, detector=det)
+        if not grp_res.frames:
+            continue
+        epochs = processing.split_epochs(grp_res.frames)
+        score = (len(epochs), len(grp_res.frames))
+        if score > best_score:
+            best_score = score
+            best_grp = grp_res
 
-    group_iterable = groups.values() if isinstance(groups, dict) else groups
+    if best_grp is None or not best_grp.frames:
+        return [], [], "N/A"
 
-    for grp in group_iterable:
-        epochs = processing.split_epochs(grp)
-        if len(epochs) > len(best_epochs) or (
-            len(epochs) == len(best_epochs)
-            and sum(len(e) for e in epochs) > len(best_flat)
-        ):
-            aligned_flat = processing.align_frames(grp)
-            best_epochs = processing.split_epochs(aligned_flat)
-            best_flat = list(aligned_flat)
-            waves = [f.wavelength for f in best_flat]
-            det = best_flat[0].detector if best_flat else 0
-            best_wave_label = f"D{det}:{min(waves):.3f}-{max(waves):.3f}"
+    aligned_flat = processing.align_frames(best_grp.frames)
+    aligned_epochs = processing.split_epochs(aligned_flat)
+    best_epochs = [list(ep.frames) for ep in aligned_epochs]
+    best_flat = list(aligned_flat)
+    waves = [f.wavelength for f in best_flat]
+    det = best_flat[0].detector if best_flat else 0
+    best_wave_label = f"D{det}:{min(waves):.3f}-{max(waves):.3f}"
 
     return best_epochs, best_flat, best_wave_label
 
@@ -281,7 +310,8 @@ def validate_target(
     fix_parallax_on_degenerate: bool = True,
 ) -> ValidationRecord:
     """Fetch frames, measure motion, and evaluate benchmark criteria for one target."""
-    raw_frames = data.get_frames(target.ra, target.dec, fov_deg)
+    fov_arcsec = float(fov_deg) * 3600.0 if float(fov_deg) <= 1.0 else float(fov_deg)
+    raw_frames = data.get_frames(target.ra, target.dec, fov_arcsec)
     if not raw_frames:
         raise RuntimeError(f"no SPHEREx coverage at this position ({target.name})")
 
@@ -432,11 +462,22 @@ def write_validation_outputs(
         f"- **Timestamp (UTC):** `{timestamp}`",
         f"- **Data versions used:** `{', '.join(versions_used)}`",
         "- **Pre-committed criteria:**",
-        f"  - Stationary (`pm_lit < {STATIONARY_PM_THRESHOLD_ARCSEC_YR}\"/yr`): `AGREE` if `|pm| / sigma < 3`, else `DISAGREE`.",
-        f"  - Moving (`pm_lit >= {STATIONARY_PM_THRESHOLD_ARCSEC_YR}\"/yr`): `UNINFORMATIVE` if `sigma >= 0.3 * pm_lit` (not a pass); "
-        "`AGREE` if `|pm_vec - pm_lit_vec| < 3 * sigma` and `sigma < 0.3 * pm_lit`; `DISAGREE` otherwise.",
+        (
+            f'  - Stationary (`pm_lit < {STATIONARY_PM_THRESHOLD_ARCSEC_YR}"/yr`): '
+            "`AGREE` if `|pm| / sigma < 3`, else `DISAGREE`."
+        ),
+        (
+            f'  - Moving (`pm_lit >= {STATIONARY_PM_THRESHOLD_ARCSEC_YR}"/yr`): '
+            "`UNINFORMATIVE` if `sigma >= 0.3 * pm_lit` (not a pass); "
+            "`AGREE` if `|pm_vec - pm_lit_vec| < 3 * sigma` and "
+            "`sigma < 0.3 * pm_lit`; `DISAGREE` otherwise."
+        ),
         "",
-        "| Target | Status | PM Lit (\"/yr) | PM Meas +/- Sigma (\"/yr) | Diff (sigma) | Plx Meas +/- Sigma (\") | chi2_red | Epochs (Frames) | Version | Window (um) | Diagnostics |",
+        (
+            '| Target | Status | PM Lit ("/yr) | PM Meas +/- Sigma ("/yr) | '
+            'Diff (sigma) | Plx Meas +/- Sigma (") | chi2_red | Epochs (Frames) | '
+            "Version | Window (um) | Diagnostics |"
+        ),
         "| :--- | :--- | ---: | ---: | ---: | ---: | ---: | ---: | :--- | :--- | :--- |",
     ]
     for r in records:

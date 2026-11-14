@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import csv
+import json
 import sys
-from typing import Sequence
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -15,6 +16,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+import coords  # noqa: E402
+import data  # noqa: E402
 from frame import Frame  # noqa: E402
 from motion import (  # noqa: E402
     DAYS_PER_YEAR,
@@ -27,23 +30,9 @@ from scripts.validate_motion import (  # noqa: E402
     ValidationRecord,
     evaluate_criterion,
     load_benchmarks,
+    select_best_epoch_group,
+    validate_target,
     write_validation_outputs,
-)
-
-
-from frame import Frame
-from motion import (
-    DAYS_PER_YEAR,
-    compute_parallax_factors,
-    measure_and_fit_epochs,
-    measure_frame_centroid,
-)
-from scripts.validate_motion import (
-    BenchmarkTarget,
-    evaluate_criterion,
-    load_benchmarks,
-    write_validation_outputs,
-    ValidationRecord,
 )
 
 PIXEL_SCALE_ARCSEC: float = 6.15
@@ -226,7 +215,7 @@ def test_motion_recovery_over_200_realisations(with_parallax: bool) -> None:
 
     for _ in range(n_runs):
         epoch_groups: list[list[Frame]] = []
-        for mjd, xt, yt in zip(epoch_mjds, x_epochs, y_epochs):
+        for mjd, xt, yt in zip(epoch_mjds, x_epochs, y_epochs, strict=True):
             frames = [
                 make_synthetic_frame(
                     x_true=float(xt),
@@ -330,7 +319,7 @@ def test_chi2_uncertainty_inflation() -> None:
                 float(x0 + dx), float(y0), 4000.0, 1.0, mjd, wcs, rng
             )
         ]
-        for mjd, dx in zip(mjds, offsets_x)
+        for mjd, dx in zip(mjds, offsets_x, strict=True)
     ]
 
     fit = measure_and_fit_epochs(epoch_groups, ra0, dec0)
@@ -421,3 +410,125 @@ def test_validation_criteria_and_stationary_star(tmp_path: Path) -> None:
     assert csv_out.exists()
     assert md_out.exists()
     assert "Stationary_Ref" in md_out.read_text(encoding="utf-8")
+
+
+def test_real_benchmarks_and_flicker_csv_integrity() -> None:
+    """Verify data/benchmarks.csv and data/flicker_stars.csv match coords & cache keys."""
+    targets = load_benchmarks(REPO_ROOT / "data" / "benchmarks.csv")
+    assert len(targets) == 5
+
+    by_name = {t.name: t for t in targets}
+    bundled_path = REPO_ROOT / "results" / "bundled_cache.json"
+    bundled = json.loads(bundled_path.read_text(encoding="utf-8"))
+    bundled_by_name = {field["target"]: field for field in bundled["fields"]}
+
+    expected_pairs = [
+        ("WISE J085510.83-071442.5", "WISE 0855-0714"),
+        ("Barnard's Star", "Barnard's Star"),
+        ("eps Ind B", "Epsilon Indi B"),
+    ]
+    for bench_name, bundled_name in expected_pairs:
+        target = by_name[bench_name]
+        resolved = coords.resolve_name(bench_name)
+        assert target.ra == pytest.approx(resolved.ra, abs=1e-6)
+        assert target.dec == pytest.approx(resolved.dec, abs=1e-6)
+        assert data.cache_key_for(target.ra, target.dec, 480) == (
+            bundled_by_name[bundled_name]["cache_key"]
+        )
+
+    flicker_path = REPO_ROOT / "data" / "flicker_stars.csv"
+    with flicker_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    assert len(rows) >= 3
+    for row in rows:
+        assert row["name"].strip()
+        assert row["source"].strip()
+        ra, dec = coords.parse_position(row["ra"], row["dec"])
+        assert np.isfinite(ra) and np.isfinite(dec)
+
+
+def test_select_best_epoch_group_and_validate_target(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Verify select_best_epoch_group and validate_target integrate processing and motion fit."""
+    rng = np.random.default_rng(2027)
+    ra0, dec0 = 150.0, 20.0
+    wcs = make_tan_wcs(ra0=ra0, dec0=dec0)
+    x_center, y_center = wcs.world_to_pixel_values(ra0, dec0)
+
+    pm_ra_true = 2.0
+    pm_dec_true = -1.0
+    epoch_mjds = np.array([60000.0, 60182.6, 60365.25, 60547.9], dtype=np.float64)
+    t0_mjd = float(np.mean(epoch_mjds))
+
+    raw_frames: list[Frame] = []
+    for mjd in epoch_mjds:
+        dt_yr = (float(mjd) - t0_mjd) / DAYS_PER_YEAR
+        xt = float(x_center) - (pm_ra_true * dt_yr) / PIXEL_SCALE_ARCSEC
+        yt = float(y_center) + (pm_dec_true * dt_yr) / PIXEL_SCALE_ARCSEC
+        for k in range(2):
+            base = make_synthetic_frame(
+                x_true=xt,
+                y_true=yt,
+                flux=3000.0,
+                sigma_noise=1.5,
+                mjd=float(mjd + k * 0.05),
+                wcs=wcs,
+                rng=rng,
+                psf_sigma_pix=0.8,
+            )
+            raw_frames.append(
+                base.copy_with(
+                    wavelength=1.25 + 0.01 * k,
+                    detector=2,
+                    meta={"ra": ra0, "dec": dec0},
+                )
+            )
+
+    # Add a less-populated detector 1 epoch so detector selection must pick detector 2
+    for k in range(2):
+        decoy = make_synthetic_frame(
+            x_true=float(x_center),
+            y_true=float(y_center),
+            flux=3000.0,
+            sigma_noise=1.5,
+            mjd=float(epoch_mjds[0] + k * 0.05),
+            wcs=wcs,
+            rng=rng,
+            psf_sigma_pix=0.8,
+        )
+        raw_frames.append(
+            decoy.copy_with(
+                wavelength=0.85 + 0.01 * k,
+                detector=1,
+                meta={"ra": ra0, "dec": dec0},
+            )
+        )
+
+    epochs, flat, label = select_best_epoch_group(raw_frames)
+    assert len(epochs) == 4
+    assert len(flat) == 8
+    assert label.startswith("D2:")
+
+    captured_fovs: list[float] = []
+
+    def fake_get_frames(ra: float, dec: float, fov: float) -> tuple[Frame, ...]:
+        captured_fovs.append(fov)
+        return tuple(raw_frames)
+
+    monkeypatch.setattr(data, "get_frames", fake_get_frames)
+    target = BenchmarkTarget(
+        name="SynthMover",
+        ra=ra0,
+        dec=dec0,
+        pm_ra_arcsec_yr=pm_ra_true,
+        pm_dec_arcsec_yr=pm_dec_true,
+        parallax_arcsec=0.0,
+        citation="synthetic",
+    )
+    rec = validate_target(target, fov_deg=0.05, snr_threshold=5.0)
+    assert captured_fovs == [pytest.approx(180.0)]
+    assert rec.status == "AGREE"
+    assert rec.n_epochs == 4
+    assert rec.n_frames_used == 8
