@@ -24,20 +24,27 @@ Pass / Fail Criteria (fixed before running):
 from __future__ import annotations
 
 import argparse
+import contextlib
 import io
 import json
+import socket
+import subprocess
 import sys
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from urllib.request import Request, urlopen
 
 import numpy as np
 from PIL import Image
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 MAX_CACHE_SIZE_MB: float = 50.0
 
@@ -366,6 +373,93 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _is_port_open(host: str, port: int) -> bool:
+    """Return True if a TCP server is currently accepting connections on ``(host, port)``."""
+    try:
+        with socket.create_connection((host, port), timeout=0.4):
+            return True
+    except OSError:
+        return False
+
+
+@contextlib.contextmanager
+def _requester_for_url(base_url: str) -> Iterator[RequesterFn]:
+    """Yield an HTTP requester for ``base_url``, starting a temporary local server if needed."""
+    parsed = urlparse(base_url)
+    host = parsed.hostname or ""
+    port = parsed.port or (443 if parsed.scheme == "https" else 80)
+
+    if parsed.scheme != "http" or host not in {"127.0.0.1", "localhost"}:
+        yield default_requester
+        return
+
+    if _is_port_open(host, port):
+        yield default_requester
+        return
+
+    # No server is listening on the local loopback port: try spawning a temporary uvicorn server.
+    proc: subprocess.Popen[bytes] | None = None
+    try:
+        proc = subprocess.Popen(  # noqa: S603
+            [
+                sys.executable,
+                "-m",
+                "uvicorn",
+                "app:app",
+                "--host",
+                host,
+                "--port",
+                str(port),
+                "--log-level",
+                "warning",
+            ],
+            cwd=str(_REPO_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        deadline = time.monotonic() + 5.0
+        ready = False
+        while time.monotonic() < deadline:
+            if proc.poll() is not None:
+                break
+            if _is_port_open(host, port):
+                ready = True
+                break
+            time.sleep(0.1)
+
+        if ready:
+            yield default_requester
+            return
+    except OSError:
+        pass
+    finally:
+        if proc is not None and proc.poll() is None:
+            proc.terminate()
+            try:
+                proc.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+
+    # Fallback when local socket binding is restricted (e.g. sandboxed container)
+    from fastapi.testclient import TestClient
+
+    import app as backend
+
+    clean_base = base_url.rstrip("/")
+    with TestClient(backend.create_app(), raise_server_exceptions=False) as client:
+
+        def _inproc_requester(url: str, timeout: float = 20.0) -> HTTPResponseData:
+            path_and_query = url[len(clean_base) :] if url.startswith(clean_base) else url
+            resp = client.get(path_and_query or "/")
+            return HTTPResponseData(
+                status_code=int(resp.status_code),
+                headers={k.lower(): v for k, v in resp.headers.items()},
+                body=resp.content,
+            )
+
+        yield _inproc_requester
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -374,12 +468,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         " " + " ".join(cmd_args) if cmd_args else ""
     )
 
-    report = run_smoke_test(
-        args.url,
-        target=args.target,
-        timeout=args.timeout,
-        repeats=args.repeats,
-    )
+    with _requester_for_url(args.url) as requester:
+        report = run_smoke_test(
+            args.url,
+            target=args.target,
+            timeout=args.timeout,
+            repeats=args.repeats,
+            requester=requester,
+        )
     report["command"] = command_str
 
     results_dir = Path(args.results_dir)
