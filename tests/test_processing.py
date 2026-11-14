@@ -679,7 +679,7 @@ def test_difference_images_wavelength_warning_and_single_epoch_error() -> None:
 
 
 def test_difference_images_epoch_selection_and_render_diff_png() -> None:
-    """difference_images defaults to first/last epoch and render_diff_png applies symmetric stretch."""
+    """difference_images uses first/last epoch and render_diff_png applies symmetric stretch."""
     ny, nx = 16, 16
     img_ep0 = _gaussian_source(ny, nx, 4.0, 8.0, flux=50.0, sigma_px=0.8)
     img_ep1 = _gaussian_source(ny, nx, 7.0, 8.0, flux=50.0, sigma_px=0.8)

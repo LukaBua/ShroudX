@@ -207,3 +207,32 @@ test('GIF download uses loaded selection and speed, reports JSON errors without 
   assert.equal(h.el('downloadGif').disabled,false);
   assert.equal(h.run('meta.n_frames'),6);
 });
+
+test('switching target or filters in diff mode clears stale epoch selections cleanly',async()=>{
+  const h=harness();
+  const wideMeta=()=>{const m=h.run('previewMeta(params())');m.synthetic=false;m.data_source='cache';
+    m.epochs=[0,1,2,3,4,5].map(epoch=>({epoch,n_frames:1,mjd_start:60900+epoch*30,
+      mjd_end:60900+epoch*30,date_start:'2025-08-13',date_end:'2025-08-13'}));return m;};
+  const narrowMeta=()=>{const m=h.run('previewMeta(params())');m.synthetic=false;m.data_source='cache';
+    m.epochs=[0,1,2].map(epoch=>({epoch,n_frames:1,mjd_start:60900+epoch*30,
+      mjd_end:60900+epoch*30,date_start:'2025-08-13',date_end:'2025-08-13'}));return m;};
+  h.el('mode').value='diff';h.el('mode').onchange();
+  h.el('target').value='Epsilon Indi B';
+  h.context.fetch=async url=>{h.calls.push(url);return url.startsWith('/api/meta')?
+    {ok:true,json:async()=>wideMeta()}:{ok:true,headers:{get:()=> 'image/png'},blob:async()=>new Blob(['fixture'],{type:'image/png'})};};
+  await h.run('load()');
+  assert.equal(h.el('epoch_a').value,'0');assert.equal(h.el('epoch_b').value,'5');
+
+  // Switch to a target with only 3 epochs; input change must clear epoch_b=5 before querying /api/meta
+  h.el('target').value="Barnard's Star";h.el('target').oninput();
+  assert.equal(h.el('epoch_b').value,'');
+  h.calls.length=0;
+  h.context.fetch=async url=>{h.calls.push(url);
+    const p=new URL(url,'http://localhost').searchParams;
+    assert.notEqual(p.get('epoch_b'),'5');
+    return url.startsWith('/api/meta')?{ok:true,json:async()=>narrowMeta()}:
+      {ok:true,headers:{get:()=> 'image/png'},blob:async()=>new Blob(['fixture'],{type:'image/png'})};};
+  await h.run('load()');
+  assert.equal(h.el('epoch_a').value,'0');assert.equal(h.el('epoch_b').value,'2');
+  assert.equal(new URL(h.calls[1],'http://localhost').searchParams.get('epoch_b'),'2');
+});

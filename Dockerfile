@@ -18,7 +18,7 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /app/requirements.txt
 
-COPY --chown=appuser:appuser frame.py coords.py flags.py data.py gaia.py processing.py app.py pyproject.toml README.md /app/
+COPY --chown=appuser:appuser frame.py coords.py flags.py data.py gaia.py motion.py processing.py app.py pyproject.toml README.md /app/
 COPY --chown=appuser:appuser static/ /app/static/
 COPY --chown=appuser:appuser data/ /app/data/
 COPY --chown=appuser:appuser scripts/ /app/scripts/

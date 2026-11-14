@@ -139,7 +139,7 @@ class CrossmatchResult:
 
 
 def _get_gaia_client(tap_client: Any = None) -> Any:
-    """Return the explicit ``tap_client``, module-level ``Gaia``, or lazy ``astroquery.gaia.Gaia``."""
+    """Return explicit ``tap_client``, module ``Gaia``, or lazy ``astroquery.gaia.Gaia``."""
     if tap_client is not None:
         return tap_client
     if Gaia is not None:
@@ -202,7 +202,7 @@ def _clean_float(val: Any) -> float:
     """Convert a scalar or masked value to float, mapping None/masked/non-finite to NaN."""
     if val is None or val is np.ma.masked:
         return math.nan
-    if hasattr(val, "mask") and bool(np.all(getattr(val, "mask"))):
+    if hasattr(val, "mask") and bool(np.all(val.mask)):
         return math.nan
     try:
         out = float(val)
@@ -325,7 +325,9 @@ def _table_to_serializable_rows(table: Table | Sequence[Mapping[str, Any]]) -> l
             out.append(entry)
         return out
 
-    return _table_to_serializable_rows(_rows_to_table(table, include_pm_missing=False, max_rows=None))
+    return _table_to_serializable_rows(
+        _rows_to_table(table, include_pm_missing=False, max_rows=None)
+    )
 
 
 def _write_cache_file(
@@ -391,8 +393,9 @@ def _load_from_cache(
     dec: float,
     radius_arcsec: float,
     *,
-    max_rows: int = MAX_CATALOG_SOURCES,
+    max_rows: int | None = MAX_CATALOG_SOURCES,
     exact_only: bool = False,
+    filter_radius_arcsec: float | None = None,
 ) -> Table | None:
     """Load a cached Gaia table by exact key or from a covering cached cone."""
     key = gaia_cache_key(ra, dec, radius_arcsec)
@@ -403,7 +406,8 @@ def _load_from_cache(
             tbl = _rows_to_table(payload.get("rows", []), max_rows=max_rows)
             tbl.meta["data_source"] = "cache"
             tbl.meta["cache_key"] = key
-            tbl.meta["truncated"] = int(payload.get("n_rows", len(tbl))) > max_rows
+            total_rows = int(payload.get("n_rows", len(tbl)))
+            tbl.meta["truncated"] = max_rows is not None and total_rows > max_rows
             return tbl
         except (OSError, ValueError, KeyError, json.JSONDecodeError):
             pass
@@ -431,16 +435,19 @@ def _load_from_cache(
     candidates.sort(key=lambda item: item[0])
     _, chosen_path, chosen_payload = candidates[0]
     raw_rows = chosen_payload.get("rows", [])
+    row_filter_rad = (
+        float(radius_arcsec) if filter_radius_arcsec is None else float(filter_radius_arcsec)
+    )
     filtered_rows = [
         r
         for r in raw_rows
         if float(_angular_separation_arcsec(ra, dec, float(r["ra"]), float(r["dec"])))
-        <= float(radius_arcsec) + 1e-6
+        <= row_filter_rad + 1e-6
     ]
     tbl = _rows_to_table(filtered_rows, max_rows=max_rows)
     tbl.meta["data_source"] = "cache"
     tbl.meta["cache_key"] = chosen_path.stem
-    tbl.meta["truncated"] = len(filtered_rows) > max_rows
+    tbl.meta["truncated"] = max_rows is not None and len(filtered_rows) > max_rows
     return tbl
 
 
@@ -935,6 +942,14 @@ def crossmatch(
     return results
 
 
+def _catalog_query_radius(radius_arcsec: float, epoch: float) -> float:
+    """Expand ref-epoch Gaia search cone so high-PM stars moving into the FOV are kept."""
+    dt = abs(float(epoch) - GAIA_REF_EPOCH)
+    if dt <= 0.0:
+        return float(radius_arcsec)
+    return float(radius_arcsec) + min(150.0, max(15.0, 12.0 * dt))
+
+
 def build_catalog(
     ra: float,
     dec: float,
@@ -949,20 +964,75 @@ def build_catalog(
     tap_client: Any = None,
 ) -> dict[str, Any]:
     """Query Gaia DR3, propagate to ``epoch``, and format the ``/api/catalog`` response."""
+    ra_deg, dec_deg = coords.parse_position(ra, dec)
+    if not math.isfinite(radius_arcsec) or radius_arcsec <= 0:
+        raise ValueError(f"radius_arcsec must be positive and finite, got {radius_arcsec}")
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError(f"timeout must be positive and finite, got {timeout}")
+
     data_mode = data.get_data_mode(mode)
     warnings_list: list[str] = list(base_warnings)
+    query_radius = _catalog_query_radius(radius_arcsec, epoch)
+    cdir = _gaia_cache_dir(cache_root)
 
-    table = query_gaia(
-        ra,
-        dec,
-        radius_arcsec,
-        cache_root=cache_root,
-        mode=data_mode,
-        timeout=timeout,
-        max_rows=max_rows,
-        tap_client=tap_client,
-    )
+    table: Table | None = None
+    if data_mode in ("cache", "auto"):
+        table = _load_from_cache(
+            cdir,
+            ra_deg,
+            dec_deg,
+            query_radius,
+            max_rows=None,
+        )
+        if table is None and query_radius > float(radius_arcsec):
+            # Preserve pre-cached 240" demo cones when FOV radius is slightly smaller than
+            # the cache cone while still keeping all cached sources out to query_radius.
+            table = _load_from_cache(
+                cdir,
+                ra_deg,
+                dec_deg,
+                radius_arcsec,
+                max_rows=None,
+                filter_radius_arcsec=query_radius,
+            )
+        if table is None and data_mode == "cache":
+            raise GaiaNotCachedError(
+                f"Gaia DR3 catalog for RA={ra_deg:.4f}, Dec={dec_deg:+.4f}, "
+                f'radius={radius_arcsec:.1f}" is not cached locally.'
+            )
+
+    if table is None:
+        fetch_max_rows = (
+            max(int(max_rows), 2000) if query_radius > float(radius_arcsec) else int(max_rows)
+        )
+        table = query_gaia(
+            ra_deg,
+            dec_deg,
+            query_radius,
+            cache_root=cache_root,
+            mode=data_mode,
+            timeout=timeout,
+            max_rows=fetch_max_rows,
+            tap_client=tap_client,
+        )
+
+    pre_truncated = bool(table.meta.get("truncated", False))
     propagated = propagate_to_epoch(table, epoch)
+    if len(propagated) > 0:
+        seps = np.asarray(
+            _angular_separation_arcsec(
+                ra_deg,
+                dec_deg,
+                np.asarray(propagated["ra"], dtype=np.float64),
+                np.asarray(propagated["dec"], dtype=np.float64),
+            ),
+            dtype=np.float64,
+        )
+        propagated = propagated[seps <= float(radius_arcsec) + 1e-6]
+
+    truncated = pre_truncated or len(propagated) > int(max_rows)
+    if len(propagated) > int(max_rows):
+        propagated = propagated[: int(max_rows)]
 
     sources: list[dict[str, Any]] = []
     n_pm_missing = 0
@@ -987,7 +1057,7 @@ def build_catalog(
             }
         )
 
-    if table.meta.get("truncated"):
+    if truncated:
         warnings_list.append(
             f"Field contains more than {max_rows} Gaia DR3 sources; "
             f"showing the {max_rows} brightest."

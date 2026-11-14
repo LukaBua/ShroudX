@@ -19,7 +19,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import math
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -116,7 +115,9 @@ def fetch_and_cache_demo_gaia(
 
         propagated = gaia.propagate_to_epoch(table, epoch)
         n_total = len(propagated)
-        n_pm_missing = int(np.sum(np.asarray(propagated["pm_missing"], dtype=bool))) if n_total else 0
+        n_pm_missing = (
+            int(np.sum(np.asarray(propagated["pm_missing"], dtype=bool))) if n_total else 0
+        )
         gmags = [
             float(g)
             for g in propagated["phot_g_mean_mag"]

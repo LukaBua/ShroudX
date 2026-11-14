@@ -60,6 +60,17 @@ def test_dockerfile_and_dockerignore_requirements() -> None:
     assert "SPHX_MODE=auto" in dockerfile
     assert "useradd" in dockerfile and "USER appuser" in dockerfile
     assert "uvicorn app:app" in dockerfile and "PORT" in dockerfile
+    for module_file in (
+        "frame.py",
+        "coords.py",
+        "flags.py",
+        "data.py",
+        "gaia.py",
+        "motion.py",
+        "processing.py",
+        "app.py",
+    ):
+        assert module_file in dockerfile, f"Dockerfile missing backend module {module_file}"
     for forbidden in ("API_KEY", "SECRET", "PASSWORD", "TOKEN"):
         assert forbidden not in dockerfile.upper()
 
@@ -267,7 +278,7 @@ def test_bundle_demo_cache_with_synthetic_cutouts(tmp_path: Path) -> None:
     assert any("exceeds target" in f for f in fail_report["failures"])
 
     # Verify CLI writes results/bundled_cache.json and bundled_cache.md
-    monkeypatch_targets = getattr(coords, "OFFLINE_TARGETS")
+    monkeypatch_targets = coords.OFFLINE_TARGETS
     orig_targets = dict(monkeypatch_targets)
     try:
         monkeypatch_targets.clear()
