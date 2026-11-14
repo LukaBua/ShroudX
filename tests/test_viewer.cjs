@@ -133,6 +133,51 @@ test('motion error leaves loaded observations intact',async()=>{
   assert.equal(h.run('meta.n_frames'),6);
 });
 
+function gaiaFixture(){return{source:'gaia_dr3',epoch:2025.9,n_sources:3,image_shape:[20,20],warnings:['One PM is missing.'],sources:[
+  {source_id_text:'1234567890123456789',x:10,y:10,g_mag:12,pmra:4,pmdec:-3,parallax:2,pm_missing:false},
+  {source_id_text:'987654321098765432',x:12,y:8,g_mag:18,pmra:null,pmdec:null,parallax:null,pm_missing:true},
+  {source_id_text:'123',x:null,y:null,g_mag:null,pmra:null,pmdec:null,parallax:null,pm_missing:true}]};}
+
+test('Gaia starts off, sizes circles by magnitude and exposes lossless source details',()=>{
+  const h=harness();assert.equal(!!h.el('gaiaToggle').checked,false);assert.equal(h.calls.length,0);
+  h.context.catalog=gaiaFixture();h.run('renderGaia(catalog)');
+  const svg=h.el('gaiaOverlay');assert.equal(svg.viewBox,'0 0 20 20');
+  assert.equal(svg.children.length,2);
+  assert.ok(Number(svg.children[0].r)>Number(svg.children[1].r));
+  assert.equal(svg.children[0].cx,'10');assert.equal(svg.children[1].cy,'8');
+  assert.match(h.el('gaiaStatus').textContent,/epoch 2025.9 · 3 sources \(2 on image\)/);
+  svg.children[0].onclick();assert.match(h.el('gaiaDetails').textContent,/1234567890123456789/);
+  assert.match(h.el('gaiaDetails').textContent,/4 mas\/yr/);
+  svg.children[1].onkeydown({key:'Enter',preventDefault(){}});
+  assert.match(h.el('gaiaDetails').textContent,/Proper motion missing/);
+  assert.equal(h.el('gaiaWarnings').children[0].textContent,'One PM is missing.');
+  h.run('clearGaia()');assert.equal(svg.children.length,0);
+});
+
+test('Gaia failure is isolated and stale requests cannot restore a disabled layer',async()=>{
+  const h=harness();h.run('meta=previewMeta(params());active=params()');h.el('gaiaToggle').checked=true;
+  h.context.fetch=async url=>{h.calls.push(url);return{ok:false,status:502,json:async()=>({error:{message:'Gaia service unreachable.'}})};};
+  await h.run('loadGaia()');assert.match(h.calls[0],/^\/api\/catalog\?/);
+  assert.equal(h.el('gaiaStatus').textContent,'Gaia unavailable');
+  assert.equal(h.el('retryGaia').hidden,false);assert.equal(h.run('meta.n_frames'),6);
+  let resolve;h.context.fetch=()=>new Promise(r=>{resolve=r;});
+  const pending=h.run('loadGaia()');h.el('gaiaToggle').checked=false;h.el('gaiaToggle').onchange();
+  resolve({ok:true,json:async()=>gaiaFixture()});await pending;
+  assert.equal(h.el('gaiaOverlay').children.length,0);
+  assert.equal(h.el('gaiaStatus').textContent,'Gaia layer off');
+  assert.equal(h.run('meta.n_frames'),6);
+});
+
+test('Gaia query uses loaded selection and an empty catalog is available, not an error',async()=>{
+  const h=harness();h.run('meta=previewMeta(params());active=params()');h.el('gaiaToggle').checked=true;
+  h.el('target').value='Unsaved target';
+  h.context.fetch=async url=>{h.calls.push(url);return{ok:true,json:async()=>({...gaiaFixture(),sources:[],n_sources:0,warnings:[]})};};
+  await h.run('loadGaia()');
+  assert.equal(new URL(h.calls[0],'http://localhost').searchParams.get('target'),'WISE 0855-0714');
+  assert.match(h.el('gaiaStatus').textContent,/0 sources/);
+  assert.equal(h.el('gaiaDetails').textContent,'No Gaia sources on this image.');
+});
+
 test('display filters never alter API selection and reset to neutral',()=>{
   const h=harness();
   const before=h.run('params().toString()');

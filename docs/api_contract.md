@@ -203,6 +203,8 @@ Errors use the standard JSON error body: 400 for invalid parameters/speed, 404 f
 
 Same parameters as `/api/meta`. Returns Gaia DR3 sources in the field, moved to the SPHEREx observation epoch with their proper motions. Never fabricated: if Gaia cannot be reached the server returns 502 with no fallback data, and in cache mode it serves only cached Gaia results (otherwise `not_cached`).
 
+Implemented: the selected SPHEREx sequence is reused to determine the image WCS and mean observation MJD, converted to a Julian year for `gaia.build_catalog`. Positions are propagated to that single mean epoch, not to each blink frame's date. `mode` is validated but does not change the catalog; `epoch_a`/`epoch_b` are ignored. The query cone includes the square image's corners (radius = half the pixel-grid diagonal times the pixel scale). It may therefore return reference sources outside the displayed square.
+
 ```json
 {
   "source": "gaia_dr3",
@@ -217,6 +219,17 @@ Same parameters as `/api/meta`. Returns Gaia DR3 sources in the field, moved to 
 ```
 
 Values above are illustrative, not real data. At most 500 sources are returned, brightest first. Proper motions are in milliarcseconds per year, as Gaia publishes them.
+
+Additional response fields used by the layer:
+
+- `image_shape`: `[height, width]`, exactly matching the aligned PNG grid.
+- `sources[].x`, `sources[].y`: projected PNG coordinates with upper-left origin, half-integer pixel centres and the FITS-to-PNG vertical flip applied. Non-finite projections are null. Out-of-image sources remain in the response but are not drawn.
+- `sources[].source_id_text`: exact decimal string of the Gaia ID. `source_id` remains an integer for existing consumers; JavaScript must display the text copy to avoid losing precision for 64-bit identifiers.
+- `g_mag` is G-band magnitude; missing magnitude/PM/parallax values remain null. Parallax is in milliarcseconds. `pm_missing` means a source retained its catalogue reference position rather than being propagated.
+
+The Gaia layer is off by default and fetched only on demand, after an image sequence loads. Circles are sized for display by G magnitude (brighter sources larger), not by positional uncertainty or angular diameter. Clicking or keyboard-activating a circle shows its identifier, magnitude, PM components and parallax. The status banner reports the Gaia epoch, total returned source count, and number on the image; catalogue warnings are displayed in the Gaia panel. Switching the layer off cancels pending requests and hides its markers.
+
+Empty catalogs are valid and show zero sources. On failure the banner says `Gaia unavailable`; the error details and Retry Gaia control remain local to this optional layer and do not stop blink playback. Errors use the common JSON format: 400 invalid selection, 404 missing image/Gaia cache or no image coverage, 422 no usable image grid, 502 unavailable IRSA/Gaia services, and safe 500 for unexpected failures. Cache mode never makes a live Gaia query. Synthetic image mode is labelled `synthetic: true`, but Gaia reference rows are never fabricated.
 
 ### GET /api/motion
 
@@ -278,6 +291,7 @@ Until the real endpoints exist, the frontend can serve static JSON files shaped 
 
 ## Changelog
 
+- Implemented the optional Gaia layer with observed-epoch catalog projection, lossless source ID text, source inspection and isolated error handling.
 - Implemented `/api/motion`, projected centroid overlays, optional panel, benchmark verdict adaptation and reproducible JSON artifacts; documented null chi-squared and marginal error-circle semantics.
 - Added implemented Difference mode, epoch validation and error semantics, chronological sign convention, wavelength warnings and `X-Diff-Limit` behavior.
 - 1.2: Implemented `/api/blink.gif`, with exact size and provenance headers, captioned frames, integer speed validation and GIF timing resolution. Documented downscaling and display-only brightness/contrast controls.

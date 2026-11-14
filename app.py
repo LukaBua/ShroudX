@@ -856,22 +856,33 @@ def create_app(
     @application.get("/api/catalog")
     def catalog_endpoint(request: Request):
         selection, _ = parse_selection(request)
-        resolved = resolve(selection.position)
-        fov = (
-            selection.fov
-            if selection.fov is not None
-            else (resolved["suggested_fov_arcsec"] or 120)
-        )
+        product, _ = products(selection)
+        metadata = product.metadata
+        target = metadata["target"]
+        epoch = float(Time(np.mean([f.mjd for f in product.aligned]),
+                           format="mjd", scale="utc").jyear)
+        height, width = metadata["image_shape"]
+        # Include the square image corners, not just an inscribed cone.
+        radius = .5 * math.hypot(width, height) * metadata["pixel_scale_arcsec"]
         body = gaia.build_catalog(
-            resolved["ra"],
-            resolved["dec"],
-            fov / 2.0,
-            epoch=coords.DEFAULT_SURVEY_EPOCH,
+            target["ra"], target["dec"], radius,
+            epoch=epoch,
             cache_root=root,
             mode=data_mode,
             timeout=timeout_sec,
-            base_warnings=resolved["warnings"],
+            base_warnings=metadata["warnings"],
         )
+        body = copy.deepcopy(body)
+        body["image_shape"] = [height, width]
+        for source in body["sources"]:
+            source["source_id_text"] = str(source["source_id"])
+            x, y = product.aligned[0].wcs.celestial.world_to_pixel_values(
+                source["ra"], source["dec"])
+            source["x"] = float(x) + .5 if np.isfinite(x) else None
+            source["y"] = height - .5 - float(y) if np.isfinite(y) else None
+        body["warnings"].append(
+            "Gaia positions use one mean observation epoch for this selection; "
+            "they are reference positions, not SPHEREx detections or per-frame tracks.")
         return json_response(body)
 
     @application.get("/", include_in_schema=False)

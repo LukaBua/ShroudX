@@ -16,7 +16,9 @@ from fastapi.testclient import TestClient
 
 import app as backend
 import coords
+import data
 import gaia
+from tests.test_app import frames  # noqa: F401 -- synthetic FITS fixture for image projection
 from scripts import fetch_gaia
 
 
@@ -343,7 +345,7 @@ def test_query_gaia_unreachable_and_timeout_and_cache_miss(tmp_path: Path) -> No
 
 
 def test_api_catalog_endpoint_contract_and_error_modes(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, frames
 ) -> None:
     """GET /api/catalog returns contract-compliant JSON, caps at 500 brightest, and handles 502/404."""
     rows = [
@@ -370,6 +372,14 @@ def test_api_catalog_endpoint_contract_and_error_modes(
     ]
     fake_tap = FakeGaiaTAP(rows)
     monkeypatch.setattr(gaia, "Gaia", fake_tap)
+    def image_frames(ra, dec, *args, **kwargs):
+        projected = []
+        for original in frames:
+            wcs = original.wcs.deepcopy()
+            wcs.wcs.crval = [ra, dec]
+            projected.append(original.copy_with(wcs=wcs))
+        return tuple(projected)
+    monkeypatch.setattr(data, "get_frames", image_frames)
 
     app_auto = backend.create_app(mode="auto", cache_root=tmp_path)
     with TestClient(app_auto, raise_server_exceptions=False) as client:
@@ -377,7 +387,8 @@ def test_api_catalog_endpoint_contract_and_error_modes(
         assert resp.status_code == 200, resp.text
         body = resp.json()
         assert body["source"] == "gaia_dr3"
-        assert body["epoch"] == 2026.0
+        expected_epoch = gaia.Time(np.mean([f.mjd for f in frames]), format="mjd").jyear
+        assert body["epoch"] == pytest.approx(expected_epoch, abs=1e-4)
         assert body["n_sources"] == 2
         assert len(body["sources"]) == 2
         assert body["sources"][0]["source_id"] == 9001
