@@ -1,0 +1,179 @@
+{
+  "verdict": "PASS",
+  "criteria": {
+    "max_cache_size_mb": 50.0,
+    "min_frames_per_default_window": 3,
+    "min_epochs_per_default_window": 2,
+    "max_wavelength_window_width_um": 0.1
+  },
+  "data_versions": [
+    "l2b-v27"
+  ],
+  "total_files": 227,
+  "total_size_bytes": 39990867,
+  "total_size_mb": 39.9909,
+  "total_size_mib": 38.1383,
+  "cutout_file_size_kb": {
+    "mean": 176.023,
+    "sigma": 4.692
+  },
+  "fields": [
+    {
+      "target": "WISE 0855-0714",
+      "cache_key": "ra133.7598_dec-07.2422_s480",
+      "ra_deg": 133.75976,
+      "dec_deg": -7.24219,
+      "bucket_arcsec": 480,
+      "n_bundled_frames": 43,
+      "detectors": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "default_detector": 5,
+      "default_window_um": [
+        4.1448,
+        4.2249
+      ],
+      "default_window_frames": 11,
+      "default_window_epochs": 4,
+      "versions": [
+        27
+      ],
+      "size_bytes": 7600971,
+      "size_mb": 7.601,
+      "size_mib": 7.2489,
+      "file_size_kb_mean": 176.618,
+      "file_size_kb_sigma": 1.366
+    },
+    {
+      "target": "Barnard's Star",
+      "cache_key": "ra269.4463_dec+04.7682_s480",
+      "ra_deg": 269.44627,
+      "dec_deg": 4.7682,
+      "bucket_arcsec": 480,
+      "n_bundled_frames": 47,
+      "detectors": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "default_detector": 2,
+      "default_window_um": [
+        1.4607,
+        1.5537
+      ],
+      "default_window_frames": 12,
+      "default_window_epochs": 3,
+      "versions": [
+        27
+      ],
+      "size_bytes": 8318659,
+      "size_mb": 8.3187,
+      "size_mib": 7.9333,
+      "file_size_kb_mean": 176.844,
+      "file_size_kb_sigma": 1.429
+    },
+    {
+      "target": "Epsilon Indi B",
+      "cache_key": "ra331.0966_dec-56.8007_s480",
+      "ra_deg": 331.09664,
+      "dec_deg": -56.80066,
+      "bucket_arcsec": 480,
+      "n_bundled_frames": 47,
+      "detectors": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "default_detector": 5,
+      "default_window_um": [
+        3.9826,
+        4.0696
+      ],
+      "default_window_frames": 12,
+      "default_window_epochs": 6,
+      "versions": [
+        27
+      ],
+      "size_bytes": 8304259,
+      "size_mb": 8.3043,
+      "size_mib": 7.9196,
+      "file_size_kb_mean": 176.538,
+      "file_size_kb_sigma": 1.331
+    },
+    {
+      "target": "RW Aurigae",
+      "cache_key": "ra076.9565_dec+30.4014_s480",
+      "ra_deg": 76.95653,
+      "dec_deg": 30.40144,
+      "bucket_arcsec": 480,
+      "n_bundled_frames": 45,
+      "detectors": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "default_detector": 3,
+      "default_window_um": [
+        1.6395,
+        1.736
+      ],
+      "default_window_frames": 9,
+      "default_window_epochs": 3,
+      "versions": [
+        27
+      ],
+      "size_bytes": 7895003,
+      "size_mb": 7.895,
+      "size_mib": 7.5293,
+      "file_size_kb_mean": 175.296,
+      "file_size_kb_sigma": 7.332
+    },
+    {
+      "target": "R Draconis",
+      "cache_key": "ra248.1676_dec+66.7550_s480",
+      "ra_deg": 248.16761,
+      "dec_deg": 66.75498,
+      "bucket_arcsec": 480,
+      "n_bundled_frames": 45,
+      "detectors": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "default_detector": 4,
+      "default_window_um": [
+        3.115,
+        3.1922
+      ],
+      "default_window_frames": 8,
+      "default_window_epochs": 6,
+      "versions": [
+        27
+      ],
+      "size_bytes": 7871975,
+      "size_mb": 7.872,
+      "size_mib": 7.5073,
+      "file_size_kb_mean": 174.784,
+      "file_size_kb_sigma": 7.076
+    }
+  ],
+  "failures": [],
+  "command": "python scripts/bundle_cache.py"
+}

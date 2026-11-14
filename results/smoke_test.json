@@ -1,0 +1,47 @@
+{
+  "verdict": "FAIL",
+  "base_url": "http://127.0.0.1:8000",
+  "target": "WISE 0855-0714",
+  "repeats": 3,
+  "data_mode": "auto",
+  "data_versions": [
+    "l2b-v27"
+  ],
+  "checks": {
+    "/health": {
+      "url": "http://127.0.0.1:8000/health",
+      "status_code": 200,
+      "verdict": "PASS",
+      "latency_ms_mean": 4.28,
+      "latency_ms_sigma": 1.13,
+      "reasons": []
+    },
+    "/api/meta": {
+      "url": "http://127.0.0.1:8000/api/meta?target=WISE+0855-0714",
+      "status_code": 200,
+      "verdict": "PASS",
+      "latency_ms_mean": 356.38,
+      "latency_ms_sigma": 614.43,
+      "reasons": []
+    },
+    "/api/image.png": {
+      "url": "http://127.0.0.1:8000/api/image.png?target=WISE+0855-0714&mode=blink&index=0",
+      "status_code": 200,
+      "verdict": "PASS",
+      "latency_ms_mean": 1.5,
+      "latency_ms_sigma": 0.18,
+      "reasons": []
+    },
+    "/api/motion": {
+      "url": "http://127.0.0.1:8000/api/motion?target=WISE+0855-0714",
+      "status_code": 404,
+      "verdict": "FAIL",
+      "latency_ms_mean": 1.27,
+      "latency_ms_sigma": 0.1,
+      "reasons": [
+        "Expected HTTP 200 on /api/motion, got 404"
+      ]
+    }
+  },
+  "command": "python scripts/smoke_test.py --url http://127.0.0.1:8000 --target \"WISE 0855-0714\""
+}

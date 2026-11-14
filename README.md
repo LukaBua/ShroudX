@@ -58,17 +58,73 @@ Pre-download and cache SPHEREx cutouts from IRSA at 480 arcsec (from which small
 
 CLI options: `--target`, `--ra`, `--dec`, `--fov` (default `480.0`), `--cache-dir` (default `cache`), `--workers` (`1`–`5`, default `5`), `--retries` (default `4`), `--mode` (`live`, `auto`, `cache`, default `live`).
 
-### 4. Start the server
+### 4. Start the server (one-command local run)
 
-```powershell
-# Example: explicit synthetic mode for offline UI exploration
-$env:SPHX_MODE = "synthetic"
-.\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
+Run locally in `SPHX_MODE=auto` (serves the bundled demo fields from `cache/` immediately and queries IRSA on cache misses) with a single command:
+
+```bash
+SPHX_MODE=auto python -m uvicorn app:app --host 127.0.0.1 --port "${PORT:-8000}"
 ```
 
-Open <http://127.0.0.1:8000/?ra=133.76&dec=-7.24> (or omit `SPHX_MODE` / set `$env:SPHX_MODE = "cache"` once cutouts are cached). Keep the UI **Data connection** selector on **Project API** to run the Python pipeline; **Synthetic interface preview** runs browser-only fixture graphics without hitting the backend.
+Or run the production container image locally with a single command (Docker or Podman):
 
-### 5. Run tests and checks
+```bash
+docker build -t shroudx . && docker run --rm -p 8000:8000 -e PORT=8000 -e SPHX_MODE=auto shroudx
+```
+
+PowerShell equivalent:
+
+```powershell
+# Default SPHX_MODE=auto (or set $env:SPHX_MODE = "synthetic" for explicit simulated data)
+$env:SPHX_MODE = "auto"; .\.venv\Scripts\python.exe -m uvicorn app:app --host 127.0.0.1 --port 8000
+```
+
+Open <http://127.0.0.1:8000/?target=WISE+0855-0714> or <http://127.0.0.1:8000/?ra=133.76&dec=-7.24>. Keep the UI **Data connection** selector on **Project API** to run the Python pipeline; **Synthetic interface preview** runs browser-only fixture graphics without hitting the backend.
+
+### 5. Bundled demo cache (`scripts/bundle_cache.py`)
+
+To build and verify the compact bundled cache (`<= 50.0 MB`) of the five demo fields and write `results/bundled_cache.json` and `results/bundled_cache.md`:
+
+```bash
+python scripts/bundle_cache.py
+```
+
+Measured output from `results/bundled_cache.md`:
+
+- **Command**: `python scripts/bundle_cache.py`
+- **Data versions**: `l2b-v27`
+- **Verdict**: **PASS** (limit <= 50.0 MB)
+- **Total bundled cache size**: **39.99 MB** (38.14 MiB, 39,990,867 bytes across 227 FITS cutouts; per-cutout size 176.0 +/- 4.7 kB)
+
+| Target | Cache directory | Bundled cutouts | Default det | Default window (um) | Window frames (epochs) | Version | Size (MB) |
+| --- | --- | ---: | ---: | --- | ---: | --- | ---: |
+| WISE 0855-0714 | `ra133.7598_dec-07.2422_s480` | 43 | 5 | 4.145-4.225 | 11 (4) | l2b-v27 | 7.60 |
+| Barnard's Star | `ra269.4463_dec+04.7682_s480` | 47 | 2 | 1.461-1.554 | 12 (3) | l2b-v27 | 8.32 |
+| Epsilon Indi B | `ra331.0966_dec-56.8007_s480` | 47 | 5 | 3.983-4.070 | 12 (6) | l2b-v27 | 8.30 |
+| RW Aurigae | `ra076.9565_dec+30.4014_s480` | 45 | 3 | 1.639-1.736 | 9 (3) | l2b-v27 | 7.89 |
+| R Draconis | `ra248.1676_dec+66.7550_s480` | 45 | 4 | 3.115-3.192 | 8 (6) | l2b-v27 | 7.87 |
+
+### 6. Hosted deployment & smoke testing (`scripts/smoke_test.py`)
+
+The `Dockerfile` uses `python:3.12-slim`, runs as non-root `appuser` (UID `10001`), sets `SPHX_MODE=auto`, bundles `/app/cache` (`39.99 MB`), enforces per-request timeouts (`SPHX_REQUEST_TIMEOUT=30.0`) and concurrency limits (`SPHX_IRSA_CONCURRENCY=2`) on routes calling IRSA, and binds `uvicorn` to `$PORT`. No secrets or credentials are included in the image or repository.
+
+- **Fly.io**:
+  ```bash
+  fly launch --no-deploy --dockerfile Dockerfile
+  fly deploy --ha=false
+  ```
+- **Render**:
+  Create a new **Web Service** from the repository with **Runtime: Docker**, set health check path to `/health`, and leave `SPHX_MODE=auto` (Render injects `$PORT` automatically).
+- **Hugging Face Spaces**:
+  Create a **Docker Space** (exposed port `7860`), set `PORT=7860` and `SPHX_MODE=auto` in the Space configuration, and push `Dockerfile`, `.dockerignore`, source files, and the bundled `cache/`.
+
+Verify the deployed URL with the smoke-test script (checks `/health`, `/api/meta`, `/api/image.png`, and `/api/motion`, writing latency measurements and results to `results/smoke_test.json`):
+
+```bash
+python scripts/smoke_test.py --url https://<DEPLOYED_HOST_URL>
+```
+
+### 7. Run tests and checks
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest -q

@@ -1,0 +1,36 @@
+# Version control & local virtual environments
+.git
+.gitignore
+FETCH_HEAD
+main
+.venv
+venv
+ENV
+
+# Python caches & test artifacts
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.ruff_cache
+tests
+docs
+results
+downloads
+
+# Secrets & environment files (never bake into image)
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*secret*
+*credentials*
+
+# Frontend/OS artifacts
+dist
+build
+.parcel-cache
+node_modules
+.DS_Store
+Thumbs.db
