@@ -8,7 +8,7 @@ A public web tool built for the **NASA Space Apps 2026** challenge *"Planet X an
 - **IRSA cutout ingestion and caching (`data.py`)**: Queries IRSA TAP (`spherex.artifact` joined with `spherex.plane`), fetches small FITS cutouts with exponential-backoff retries (capped at 5 parallel workers), drops the large `PSF` extension when caching to disk under `cache/<key>/`, recovers corrupted `index.csv` files from FITS headers, and serves smaller FOV requests by cropping larger cached buckets (`120`, `240`, `480`, `600` arcsec) via `Cutout2D`.
 - **SPHEREx flag decoding (`flags.py`)**: Decodes the 32-bit `FLAGS` bitmask against `MP_*` header keywords. Masks genuine `DETECTOR_DEFECTS` (`SUR_ERROR`, `PHANTOM`, `REFERENCE`, `NONFUNC`, `DICHROIC`, `MISSING_DATA`, `HOT`, `COLD`), tracks `UNRELIABLE_CORE` (`OVERFLOW`, `PHANMISS`, `NONLINEAR`, `PERSIST`), and preserves `SOURCE` (bit 21) and `FULLSAMPLE` (bit 12) pixels.
 - **Wavelength-aware cleaning, alignment, and stacking (`processing.py`)**: Evaluates per-pixel wavelength at the target pixel from `WCS-WAVE` (spectral WCS key `'W'`, SIP disabled), subtracts `ZODI` pixel-by-pixel and a 3-sigma-clipped median sky background, selects frames within one detector (`1`–`6`) and a narrow wavelength window (default `<= 0.10` um) to prevent chromatic star flicker, splits epochs at `> 30` day gaps, reprojects frames onto a North-up East-left ICRS TAN grid (`~6.15` arcsec/px), builds an inverse-variance weighted MAD-clipped stack, and renders PNGs with a single shared `asinh`/`linear` stretch across the entire blink sequence and stack.
-- **FastAPI backend and single-file frontend (`app.py`, `static/index.html`)**: Serves a zero-build static UI and query-string-driven API endpoints (`/health`, `/api/resolve`, `/api/meta`, `/api/image.png`), returning structured JSON errors (`no_coverage`, `not_cached`, `unknown_target`, `insufficient_data`, `archive_unreachable`, `bad_input`) without ever silently falling back to synthetic data.
+- **FastAPI backend and single-file frontend (`app.py`, `static/index.html`)**: Serves a zero-build static UI and query-string-driven API endpoints (`/health`, `/api/resolve`, `/api/meta`, `/api/image.png`, `/api/blink.gif`), returning structured JSON errors (`no_coverage`, `not_cached`, `unknown_target`, `insufficient_data`, `archive_unreachable`, `bad_input`) without ever silently falling back to synthetic data.
 
 ---
 
@@ -80,7 +80,7 @@ node --test tests/test_viewer.cjs
 
 ## API reference
 
-All endpoints are same-origin (`docs/api_contract.md` v1.1). Query parameters make every view shareable by URL.
+All endpoints are same-origin (`docs/api_contract.md` v1.2). Query parameters make every view shareable by URL.
 
 | Method & Path | Query Parameters | Response | Notes |
 | --- | --- | --- | --- |
@@ -89,6 +89,7 @@ All endpoints are same-origin (`docs/api_contract.md` v1.1). Query parameters ma
 | `GET /api/resolve` | `target` **or** (`ra` and `dec`) | JSON | Returns ICRS `ra`, `dec`, `source` (`offline_table`, `simbad`, `coordinates`), `pm_known`, `warnings`, `suggested_fov_arcsec`, `suggested_detector`. |
 | `GET /api/meta` | `target` or (`ra`, `dec`), optional `fov` (`30`–`600`), `detector` (`1`–`6`), paired `wmin`/`wmax` (um), `mode` (`blink`/`stack`) | JSON | Runs `get_frames`, `group_frames`, `clean_frame`, `align_frames`, `split_epochs`, `compute_stretch`, `stack_frames`. Returns `frames`, `epochs`, `stretch`, `wavelength_window_um`, `detector_ranges_um`, `data_source`, `synthetic`, and `warnings`. |
 | `GET /api/image.png` | Same as `/api/meta`, plus `index` (required when `mode=blink`) | `image/png` | North-up, East-left PNG rendered with the shared `stretch` from `/api/meta`. Headers: `X-Data-Source`, `X-Synthetic`, `Cache-Control: no-store`. |
+| `GET /api/blink.gif` | Same as `/api/meta`, plus optional `speed` (`50`–`2000` ms, default `500`, rounded to 10 ms) | `image/gif` | Animated GIF download (`shroudx-blink.gif`, `< 10` MB) of the full blink sequence with shared `stretch` and caption strip (frame ordinal, UTC date, wavelength, plus `SYNTHETIC DATA` in synthetic mode). Headers: `Content-Disposition`, `X-Gif-Size-Bytes`, `X-Data-Source`, `X-Synthetic`, `Cache-Control: no-store`. |
 
 ### Error codes
 
@@ -100,7 +101,7 @@ Errors return JSON shaped as `{"error": {"code": "...", "message": "...", "detai
 | `404` | `no_coverage` | IRSA TAP returned no SPHEREx images covering the position. |
 | `404` | `not_cached` | `SPHX_MODE=cache` is active and the position is not in the local cache. |
 | `404` | `unknown_target` | Target name could not be resolved via SIMBAD/CDS or the offline table. |
-| `422` | `insufficient_data` | Coverage exists, but no usable frames or unmasked pixels remain for the selected detector/wavelength window. |
+| `422` | `insufficient_data` | Coverage exists, but no usable frames or unmasked pixels remain for the selected detector/wavelength window (or too many frames to fit a GIF export below 10 MB). |
 | `502` | `archive_unreachable` | IRSA TAP or cutout download endpoints could not be reached in `auto` or `live` mode. |
 | `500` | `internal_error` | Unexpected processing failure (safe message; internal details are logged only). |
 
@@ -110,7 +111,7 @@ Errors return JSON shaped as `{"error": {"code": "...", "message": "...", "detai
 
 - **Cutout size limit**: Cutouts are capped at `600` arcsec (`SIZE_BUCKETS_ARCSEC = (120, 240, 480, 600)`), and API `fov` accepts `30`–`600` arcsec.
 - **No proper-motion or parallax fitting yet**: `motion.py` and `/api/motion` are not implemented in this core release; the viewer enables visual blinking and epoch-grouped inspection rather than quantitative astrometric fitting.
-- **Core features not yet implemented**: Difference imaging (`mode=diff` returns `400 bad_input`), animated GIF export (`/api/blink.gif`), Gaia DR3 catalog overlays (`/api/catalog`), and blind mover detection (`/api/movers`) are deferred Phase 2 features.
+- **Core features not yet implemented**: Difference imaging (`mode=diff` returns `400 bad_input`), Gaia DR3 catalog overlays (`/api/catalog`), and blind mover detection (`/api/movers`) are deferred Phase 2 features.
 - **Proper-motion propagation scope**: Offline epoch propagation to `2026.0` applies only to the five targets in `coords.OFFLINE_TARGETS` (`data/benchmarks.csv` sources). Arbitrary names resolved via online SIMBAD/CDS (`SkyCoord.from_name`) return catalog coordinates without proper-motion propagation, so fast movers queried online may require a wider FOV.
 - **Reprojection variance approximation**: `align_frames` reprojects `variance` bilinearly via `reproject_interp`, which approximates pixel noise and introduces correlation between adjacent pixels.
 - **Stacking suppresses fast movers**: `stack_frames` performs per-pixel MAD sigma-clipping across all frames; objects that move across pixels between epochs can be rejected or dimmed in the full stack, so moving targets should be inspected via blink playback or per-epoch views.
@@ -127,7 +128,7 @@ Developed during the NASA Space Apps 2026 hackathon (core pipeline and viewer):
 - `flags.py`: SPHEREx 32-bit `FLAGS` decoder grounded in `MP_*` FITS header keywords, flag group classifications (`DETECTOR_DEFECTS`, `UNRELIABLE_CORE`, `TRANSIENTS`, `INFORMATION_ONLY`, `IMAGE_ARTIFACTS`), and `verify_against_header`.
 - `data.py` & `scripts/fetch_cutouts.py`: IRSA TAP querying (`spherex.artifact` / `spherex.plane`), retry/backoff parallel cutout downloader (`<= 5` workers, `PSF` stripping, atomic writes), bucketed disk cache with corrupted-index rebuild and `Cutout2D` cropping, named-HDU `Frame` construction with `WCS-WAVE` evaluation, `SPHX_MODE` handling, and CLI pre-fetcher.
 - `processing.py`: `ZODI` and sigma-clipped sky background subtraction, masked-pixel display inpainting, detector and narrow wavelength-window grouping, 30-day epoch splitting, North-up East-left TAN WCS alignment via `reproject_interp`, inverse-variance MAD-clipped coadding, and shared-stretch PNG rendering.
-- `app.py` & `static/index.html`: Thread-safe FastAPI backend with bounded expiring `ProductCache`, structured contract error handling, and a dependency-free single-file blink/stack HTML/JS viewer with epoch timeline and URL state synchronization.
+- `app.py` & `static/index.html`: Thread-safe FastAPI backend with bounded expiring `ProductCache`, captioned animated GIF export (`/api/blink.gif`), structured contract error handling, and a dependency-free single-file blink/stack HTML/JS viewer with epoch timeline and URL state synchronization.
 - `docs/` & `data/`: API contract (`docs/api_contract.md`), source-of-truth notes (`docs/source_of_truth.md`), and literature-cited CSV tables (`data/benchmarks.csv`, `data/flicker_stars.csv`).
 - `tests/`: Unit and end-to-end integration tests across all backend modules (`test_frame.py`, `test_coords.py`, `test_flags.py`, `test_data.py`, `test_processing.py`, `test_app.py`, `test_integration.py`) plus frontend VM harness tests (`test_viewer.cjs`).
 

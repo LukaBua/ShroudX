@@ -22,11 +22,11 @@ from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
-from PIL import Image, ImageDraw
 from astropy.time import Time
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, Response
+from PIL import Image, ImageDraw
 from starlette.exceptions import HTTPException
 from starlette.staticfiles import StaticFiles
 
@@ -77,8 +77,11 @@ def render_blink_gif(product: Products, speed: int) -> bytes:
         if len(result) < GIF_MAX_BYTES:
             return result
         if width == 1 and height == 1:
-            raise APIError(422, "insufficient_data",
-                           "Too many frames to export a GIF below 10 MB; narrow the wavelength window.")
+            raise APIError(
+                422,
+                "insufficient_data",
+                "Too many frames to export a GIF below 10 MB; narrow the wavelength window.",
+            )
         width, height = max(1, int(width * .7)), max(1, int(height * .7))
 
 
