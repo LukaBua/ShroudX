@@ -1,13 +1,15 @@
 """Core ShroudX API. Run with ``python -m uvicorn app:app``.
 
 All blocking work runs in FastAPI's worker threads (synchronous endpoints).
-The pipeline lock coalesces duplicate requests and serializes access to data.py's
-in-process cache. Only rendered products are retained by this application cache.
+The product cache coalesces duplicate requests and serializes builds, which protects
+data.py's in-process cache, while cache hits are served without waiting for a build.
+Only rendered products are retained by this application cache.
 """
 
 from __future__ import annotations
 
 import copy
+import io
 import logging
 import math
 import os
@@ -20,6 +22,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import numpy as np
+from PIL import Image, ImageDraw
 from astropy.time import Time
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -33,6 +36,50 @@ import processing
 
 ROOT = Path(__file__).resolve().parent
 LOG = logging.getLogger(__name__)
+GIF_MAX_BYTES = 10_000_000
+
+
+def render_blink_gif(product: Products, speed: int) -> bytes:
+    """Caption the cached PNGs without recomputing their authoritative stretch.
+
+    GIF stores delays in 10 ms units; round requested delays to the nearest
+    10 ms. Ordinal captions keep identical observations as separate GIF frames.
+    Reduce the image area until the encoded file is strictly below 10 MB.
+    """
+    images = []
+    for png in product.blink:
+        with Image.open(io.BytesIO(png)) as image:
+            images.append(image.convert("L"))
+    if not images:
+        raise APIError(422, "insufficient_data", "No frames available for GIF export.")
+    width, height = images[0].size
+    palette = [channel for value in range(256) for channel in (value, value, value)]
+    while True:
+        animation = []
+        for i, (image, frame) in enumerate(zip(images, product.metadata["frames"], strict=True)):
+            canvas = Image.new("L", (max(360, width), height + 30), 0)
+            canvas.paste(image.resize((width, height), Image.Resampling.NEAREST),
+                         ((canvas.width - width) // 2, 0))
+            draw = ImageDraw.Draw(canvas)
+            draw.text((4, height + 2),
+                      f"{i + 1}/{len(images)} | {frame['date']} | "
+                      f"{frame['wavelength_um']:.4f} um", fill=255)
+            label = "SYNTHETIC DATA | " if product.metadata["synthetic"] else ""
+            draw.text((4, height + 16), label + "ShroudX / SPHEREx", fill=255)
+            indexed = canvas.convert("P")
+            indexed.putpalette(palette)
+            animation.append(indexed)
+        output = io.BytesIO()
+        animation[0].save(output, format="GIF", save_all=True,
+                          append_images=animation[1:], loop=0,
+                          duration=10 * ((speed + 5) // 10), disposal=2, optimize=False)
+        result = output.getvalue()
+        if len(result) < GIF_MAX_BYTES:
+            return result
+        if width == 1 and height == 1:
+            raise APIError(422, "insufficient_data",
+                           "Too many frames to export a GIF below 10 MB; narrow the wavelength window.")
+        width, height = max(1, int(width * .7)), max(1, int(height * .7))
 
 
 class APIError(Exception):
@@ -71,29 +118,48 @@ class Products:
 
 
 class ProductCache:
-    """Bounded, expiring LRU; a lock prevents duplicate builds and cache races."""
+    """Bounded, expiring LRU with single-flight builds.
+
+    ``lock`` only guards the entry table, so cache hits are never blocked by a slow build.
+    ``build_lock`` serializes builds (data.py's in-process frame cache is not thread-safe) and
+    lets threads waiting on the same key reuse the result instead of building it again.
+    """
 
     def __init__(self, max_entries: int = 8, ttl: float = 300, max_bytes: int = 64 * 1024**2):
         self.max_entries, self.ttl, self.max_bytes = max_entries, ttl, max_bytes
         self.entries: OrderedDict[Any, tuple[float, Products, int]] = OrderedDict()
         self.lock = threading.RLock()
+        self.build_lock = threading.Lock()
+
+    def _lookup(self, key: Any) -> Products | None:
+        """Return a live entry (marking it recently used), purging expired ones. Needs lock."""
+        now = time.monotonic()
+        for old_key, (deadline, _, _) in list(self.entries.items()):
+            if deadline <= now:
+                del self.entries[old_key]
+        if key in self.entries:
+            self.entries.move_to_end(key)
+            return self.entries[key][1]
+        return None
 
     def get(self, key: Any, build: Callable[[], Products]) -> tuple[Products, bool]:
         with self.lock:
-            now = time.monotonic()
-            for old_key, (deadline, _, _) in list(self.entries.items()):
-                if deadline <= now:
-                    del self.entries[old_key]
-            if key in self.entries:
-                self.entries.move_to_end(key)
-                return self.entries[key][1], True
+            found = self._lookup(key)
+        if found is not None:
+            return found, True
+        with self.build_lock:
+            with self.lock:
+                found = self._lookup(key)  # another thread may have built it while we waited
+            if found is not None:
+                return found, True
             result = build()
             size = sum(map(len, result.blink)) + len(result.stack)
             if size <= self.max_bytes:
-                self.entries[key] = (time.monotonic() + self.ttl, result, size)
-                while (len(self.entries) > self.max_entries
-                       or sum(entry[2] for entry in self.entries.values()) > self.max_bytes):
-                    self.entries.popitem(last=False)
+                with self.lock:
+                    self.entries[key] = (time.monotonic() + self.ttl, result, size)
+                    while (len(self.entries) > self.max_entries
+                           or sum(entry[2] for entry in self.entries.values()) > self.max_bytes):
+                        self.entries.popitem(last=False)
             return result, False
 
 
@@ -177,8 +243,7 @@ def resolve(position: Position) -> dict[str, Any]:
     source = {"offline": "offline_table", "sesame": "simbad"}.get(result.source, result.source)
     if source not in ("offline_table", "simbad"):
         raise RuntimeError("Unknown coordinate provenance")
-    canonical = coords._OFFLINE_ALIASES.get(position.target.lower(), position.target)
-    profile = coords.OFFLINE_TARGETS.get(canonical)
+    profile = coords.lookup_offline_target(position.target)
     suggestion = coords.TARGET_PROFILES.get(profile.target_class) if profile else None
     fast = bool(profile and profile.pmra is not None and profile.pmdec is not None
                 and math.hypot(profile.pmra, profile.pmdec) > coords.HIGH_PM_THRESHOLD_MAS_YR)
@@ -205,7 +270,11 @@ def build_products(selection: Selection, data_mode: str, cache_root: Path) -> Pr
     grouped = processing.group_frames(frames, detector=selection.detector,
                                        wmin=selection.wmin, wmax=selection.wmax)
     if not grouped.frames:
-        raise APIError(422, "insufficient_data", "No usable frames in this detector/wavelength window.")
+        raise APIError(
+            422,
+            "insufficient_data",
+            "No usable frames in this detector/wavelength window.",
+        )
     aligned = processing.align_frames(
         tuple(processing.clean_frame(f) for f in grouped.frames),
         target_ra=resolved["ra"], target_dec=resolved["dec"], fov_arcsec=fov,
@@ -225,10 +294,15 @@ def build_products(selection: Selection, data_mode: str, cache_root: Path) -> Pr
     if len(epochs) < 2:
         warnings.append("Only one observation epoch is available; motion is not established.")
     if resolved["suggested_fov_arcsec"] and fov < resolved["suggested_fov_arcsec"]:
-        warnings.append("This field may be too small for a fast-moving target; consider 300 arcseconds.")
+        warnings.append(
+            "This field may be too small for a fast-moving target; consider 300 arcseconds."
+        )
     warnings.extend([
         "Reprojected pixel uncertainties are approximate and neighbouring pixels are correlated.",
-        "Sigma-clipped stacking across epochs can suppress moving objects; inspect the blink sequence.",
+        (
+            "Sigma-clipped stacking across epochs can suppress moving objects; "
+            "inspect the blink sequence."
+        ),
     ])
     sources = {(f.meta or {}).get("data_source") for f in frames}
     source = "synthetic" if is_synthetic else "archive" if "archive" in sources else "cache"
@@ -281,7 +355,9 @@ def create_app(*, mode: str | None = None, cache_root: str | Path | None = None)
         mapping = {"no_coverage": 404, "not_cached": 404, "archive_unreachable": 502}
         status = mapping.get(exc.code, 500)
         if status == 500:
-            return error_response(APIError(500, "internal_error", "Unable to process the observations."))
+            return error_response(
+                APIError(500, "internal_error", "Unable to process the observations.")
+            )
         return error_response(APIError(status, exc.code, str(exc)))
 
     @application.exception_handler(RequestValidationError)
@@ -295,20 +371,34 @@ def create_app(*, mode: str | None = None, cache_root: str | Path | None = None)
     @application.exception_handler(Exception)
     async def unexpected_error_handler(request: Request, exc: Exception):
         LOG.error("Unhandled ShroudX request error", exc_info=exc)
-        return error_response(APIError(500, "internal_error", "Unable to process the observations."))
+        return error_response(
+            APIError(500, "internal_error", "Unable to process the observations.")
+        )
 
     def products(selection: Selection) -> tuple[Products, bool]:
         # The app has a fixed mode/cache root. Selection includes every scientific
         # input; view/index do not alter the sequence or its shared display stretch.
         return cache.get(selection, lambda: build_products(selection, data_mode, root))
 
+    health_memo: dict[str, Any] = {"at": float("-inf"), "size": None}
+    health_lock = threading.Lock()
+
+    def cache_size_mb() -> float | None:
+        # Walking the whole cache on every probe is wasteful, so reuse a recent measurement.
+        with health_lock:
+            if time.monotonic() - health_memo["at"] >= 30:
+                try:
+                    health_memo["size"] = (
+                        sum(p.stat().st_size for p in root.rglob("*") if p.is_file()) / 1_000_000
+                    )
+                except OSError:
+                    health_memo["size"] = None
+                health_memo["at"] = time.monotonic()
+            return health_memo["size"]
+
     @application.get("/health")
     def health():
-        try:
-            size = sum(p.stat().st_size for p in root.rglob("*") if p.is_file()) / 1_000_000
-        except OSError:
-            size = None
-        return json_response(dict(status="ok", data_mode=data_mode, cache_size_mb=size))
+        return json_response(dict(status="ok", data_mode=data_mode, cache_size_mb=cache_size_mb()))
 
     @application.get("/api/resolve")
     def resolve_endpoint(request: Request):
@@ -342,6 +432,24 @@ def create_app(*, mode: str | None = None, cache_root: str | Path | None = None)
         return Response(content, media_type="image/png", headers={
             "Cache-Control": "no-store", "X-Data-Source": source,
             "X-Synthetic": str(data_mode == "synthetic").lower(),
+        })
+
+    @application.get("/api/blink.gif")
+    def blink_gif_endpoint(request: Request):
+        selection, _ = parse_selection(request)
+        speed = integer(request, "speed")
+        speed = 500 if speed is None else speed
+        if not 50 <= speed <= 2000:
+            raise bad_input("GIF speed must be between 50 and 2000 milliseconds.", "speed")
+        product, hit = products(selection)
+        content = render_blink_gif(product, speed)
+        source = product.metadata["data_source"]
+        if hit and source == "archive":
+            source = "cache"
+        return Response(content, media_type="image/gif", headers={
+            "Cache-Control": "no-store", "X-Gif-Size-Bytes": str(len(content)),
+            "X-Data-Source": source, "X-Synthetic": str(data_mode == "synthetic").lower(),
+            "Content-Disposition": 'attachment; filename="shroudx-blink.gif"',
         })
 
     @application.get("/", include_in_schema=False)

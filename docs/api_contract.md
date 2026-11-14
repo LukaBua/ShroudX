@@ -1,6 +1,6 @@
 # API contract
 
-Version 1.1. Owner: Luka. Consumers: Shayan (frontend and `app.py`), everyone writing tests.
+Version 1.2. Owner: Luka. Consumers: Shayan (frontend and `app.py`), everyone writing tests.
 
 This file is the single source of truth for what the backend returns and what the frontend expects. Change it only through Luka, who announces every change to the whole team. Example values below are illustrative, not real data.
 
@@ -181,13 +181,19 @@ Rules:
 3. Every `blink` and `stack` image for one parameter set uses the `stretch` from `/api/meta`, so blinking is not disturbed by changing contrast. `mode=diff` images use a symmetric stretch around zero with one fixed limit for the whole result; that limit (in units of sigma) is returned in the response header `X-Diff-Limit`.
 4. Errors use the JSON error format above, not an image.
 
-## Phase 2 endpoints (draft)
+## Phase 2 endpoints
 
-These are reserved. Their exact shapes are defined in Prompts 11 and 13 and will be written into this file when each is implemented. The fields below are the agreed starting point so Shayan can build against mock data.
+GIF export is implemented. The remaining endpoints are reserved drafts whose exact shapes are defined in Prompts 11 and 13; their examples are agreed starting points for building against mock data.
 
 ### GET /api/blink.gif
 
-Same parameters as `/api/meta`, plus `speed` (milliseconds per frame, 50 to 2000, default 500). Returns an animated GIF that loops forever, built from the same cleaned, aligned frames and the same shared stretch as `/api/image.png`, with a thin caption strip on each frame showing its date and wavelength. The file stays under 10 MB (the project page limit); if it had to be downscaled, the response header `X-Gif-Size-Bytes` carries the final size. Errors use the JSON error format above.
+Implemented: same selection parameters as `/api/meta`, plus integer `speed` (milliseconds per frame, 50 to 2000, default 500). `mode` is validated as for `/api/meta` but export always includes the entire blink sequence, including when the viewer is in stack mode. `index` and UI-only parameters are ignored.
+
+Returns `image/gif` as the attachment `shroudx-blink.gif`, looping forever with one frame per blink observation in the same order. Images come directly from the PNG products and share their authoritative stretch. A caption strip outside the image shows frame ordinal, UTC date, wavelength in micrometres, and a SYNTHETIC DATA label in synthetic mode. Narrow images are centred on a wider caption canvas. GIF palette quantization and any image downscaling are display operations only. Client brightness and contrast filters are never applied to the export.
+
+GIF delays have 10 ms resolution; speeds are rounded to the nearest 10 ms (ties upward). The encoded file is strictly below 10,000,000 bytes; the image area is progressively downscaled if necessary. `X-Gif-Size-Bytes` always reports the exact response-body size, whether downscaled or not. `X-Synthetic` and `X-Data-Source` report provenance as for PNGs. `Content-Disposition` requests a download.
+
+Errors use the standard JSON error body: 400 for invalid parameters/speed, 404 for no coverage or missing cache, 502 for an unreachable archive, and 422 if no usable frames exist or even a minimum-size export cannot fit all frames under the size limit. No frames are silently dropped.
 
 ### GET /api/catalog
 
@@ -257,5 +263,6 @@ Until the real endpoints exist, the frontend can serve static JSON files shaped 
 
 ## Changelog
 
+- 1.2: Implemented `/api/blink.gif`, with exact size and provenance headers, captioned frames, integer speed validation and GIF timing resolution. Documented downscaling and display-only brightness/contrast controls.
 - 1.1: `/api/resolve` takes only `target`, `ra`, `dec`. Added the 422 `insufficient_data` error. Stated that `stretch` in `/api/meta` applies to blink and stack only, and added the `X-Diff-Limit` header for diff images. The diff wavelength warning threshold is now half of `max_width`.
 - 1.0: first version.

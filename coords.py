@@ -11,14 +11,14 @@ from astropy.coordinates import Angle, SkyCoord
 from astropy.coordinates.name_resolve import NameResolveError
 
 DEFAULT_SURVEY_EPOCH: float = 2026.0
-HIGH_PM_THRESHOLD_MAS_YR: float = 1000.0  
+HIGH_PM_THRESHOLD_MAS_YR: float = 1000.0
 
 TARGET_PROFILES: dict[str, int] = {
-    "cold brown dwarf": 5,     
-    "m dwarf": 2,              
-    "t tauri star": 3,         
-    "agb / mira variable": 4,  
-    "solar system body": 1,    
+    "cold brown dwarf": 5,
+    "m dwarf": 2,
+    "t tauri star": 3,
+    "agb / mira variable": 4,
+    "solar system body": 1,
 }
 
 
@@ -45,7 +45,8 @@ class OfflineEntry:
     citation: Optional[str] = None
 
 
-# Literature values populated from Demo targets data .xlsx (Gaia EDR3, Kirkpatrick+2021, van Leeuwen 2007).
+# Literature values from Demo targets data .xlsx
+# (Gaia EDR3, Kirkpatrick+2021, van Leeuwen 2007).
 OFFLINE_TARGETS: dict[str, OfflineEntry] = {
     "WISE 0855-0714": OfflineEntry(
         ra=133.818908,
@@ -183,7 +184,8 @@ def _parse_ra(ra: float | int | str) -> float:
                 ra_deg = float(angle.to(u.deg).value)
             except Exception as exc:
                 raise ValueError(
-                    f"Could not parse RA '{ra}' as decimal degrees or sexagesimal hours (0 <= RA < 24h)."
+                    f"Could not parse RA '{ra}' as decimal degrees or sexagesimal hours "
+                    "(0 <= RA < 24h)."
                 ) from exc
     else:
         raise ValueError(f"Unsupported type for RA: {type(ra).__name__}")
@@ -212,7 +214,8 @@ def _parse_dec(dec: float | int | str) -> float:
                 dec_deg = float(angle.to(u.deg).value)
             except Exception as exc:
                 raise ValueError(
-                    f"Could not parse Dec '{dec}' as decimal or sexagesimal degrees (-90 <= Dec <= 90)."
+                    f"Could not parse Dec '{dec}' as decimal or sexagesimal degrees "
+                    "(-90 <= Dec <= 90)."
                 ) from exc
     else:
         raise ValueError(f"Unsupported type for Dec: {type(dec).__name__}")
@@ -274,6 +277,19 @@ def position_at_epoch(
 
     new_ra = (ra_deg + d_ra_deg) % 360.0
     return new_ra, new_dec
+
+
+def lookup_offline_target(
+    name: str,
+    offline_table: Optional[dict[str, OfflineEntry]] = None,
+) -> Optional[OfflineEntry]:
+    """Return the offline-table entry for ``name`` (aliases allowed), or None if unknown."""
+    table = offline_table if offline_table is not None else OFFLINE_TARGETS
+    cleaned = name.strip()
+    canonical = _OFFLINE_ALIASES.get(cleaned.lower())
+    if canonical is None and cleaned in table:
+        canonical = cleaned
+    return table.get(canonical) if canonical else None
 
 
 def _resolve_from_offline_entry(
@@ -386,7 +402,9 @@ def resolve_name(
         )
     except (NameResolveError, Exception) as net_exc:
         if offline_entry is not None:
-            return _resolve_from_offline_entry(canonical_key or cleaned, offline_entry, target_epoch)
+            return _resolve_from_offline_entry(
+                canonical_key or cleaned, offline_entry, target_epoch
+            )
         raise ValueError(
             f"Could not resolve target name '{cleaned}' via SIMBAD/CDS or offline table."
         ) from net_exc

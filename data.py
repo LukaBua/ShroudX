@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 import re
 import tempfile
@@ -34,6 +35,11 @@ VALID_MODES: frozenset[str] = frozenset({"cache", "live", "auto", "synthetic"})
 KEPT_HDU_NAMES: tuple[str, ...] = ("PRIMARY", "IMAGE", "FLAGS", "VARIANCE", "ZODI", "WCS-WAVE")
 REQUIRED_HDU_NAMES: tuple[str, ...] = ("IMAGE", "FLAGS", "VARIANCE", "ZODI", "WCS-WAVE")
 INDEX_COLUMNS: tuple[str, ...] = ("file", "mjd", "bandpass", "uri")
+# Written next to index.csv when some cutouts failed to download, so a later request knows the
+# cached sequence is incomplete instead of silently serving it as if it were whole.
+INCOMPLETE_MARKER: str = "incomplete.json"
+# SPHEREx covers 0.75-5.0 um; anything outside this is a unit or lookup error, not a wavelength.
+PLAUSIBLE_WAVELENGTH_UM: tuple[float, float] = (0.70, 5.10)
 
 DETECTOR_RANGES_UM: dict[int, tuple[float, float]] = {
     1: (0.75, 1.09),
@@ -333,7 +339,9 @@ def _evaluate_wavelength_um(
                     chosen_val = float(np.asarray(vals_tuple[0]).item())
                     chosen_unit = cunits[0] if cunits else ""
                 if chosen_val is not None and np.isfinite(chosen_val) and chosen_val > 0:
-                    return _convert_wavelength_to_um(chosen_val, chosen_unit)
+                    accepted = _accept_wavelength_um(chosen_val, chosen_unit)
+                    if accepted is not None:
+                        return accepted
             except Exception:
                 continue
 
@@ -346,24 +354,32 @@ def _evaluate_wavelength_um(
             val = float(arr[iy, ix])
             if np.isfinite(val) and val > 0:
                 unit = str(wave_hdr.get("BUNIT", wave_hdr.get("CUNIT1W", "um")))
-                return _convert_wavelength_to_um(val, unit)
+                accepted = _accept_wavelength_um(val, unit)
+                if accepted is not None:
+                    return accepted
         elif arr.ndim >= 3 and arr.shape[-2:] == (ny, nx):
             ix = int(np.clip(round(px), 0, nx - 1))
             iy = int(np.clip(round(py), 0, ny - 1))
             val = float(arr.reshape(-1, ny, nx)[0, iy, ix])
             if np.isfinite(val) and val > 0:
                 unit = str(wave_hdr.get("BUNIT", wave_hdr.get("CUNIT1W", "um")))
-                return _convert_wavelength_to_um(val, unit)
+                accepted = _accept_wavelength_um(val, unit)
+                if accepted is not None:
+                    return accepted
 
-    # 3. Header keyword fallback on WCS-WAVE or IMAGE.
+    # 3. Scalar header keyword fallback. CRVAL1W is deliberately NOT used here: it is the
+    # WCS reference value, not the wavelength at the target pixel, so using it would silently
+    # mislabel the frame and corrupt the wavelength-window grouping.
     for hdr in (wave_hdr, hdul["IMAGE"].header):
-        for key in ("WAVELEN", "WAVELENG", "LAMBDA", "EFF_WAVE", "CENWAVE", "CRVAL1W"):
+        for key in ("WAVELEN", "WAVELENG", "LAMBDA", "EFF_WAVE", "CENWAVE"):
             if key in hdr and hdr[key] is not None:
                 try:
                     val = float(hdr[key])
                     if np.isfinite(val) and val > 0:
                         unit = str(hdr.get("CUNIT1W", hdr.get("WAVEUNIT", "um")))
-                        return _convert_wavelength_to_um(val, unit)
+                        accepted = _accept_wavelength_um(val, unit)
+                        if accepted is not None:
+                            return accepted
                 except (TypeError, ValueError):
                     continue
 
@@ -371,7 +387,11 @@ def _evaluate_wavelength_um(
 
 
 def _convert_wavelength_to_um(value: float, unit_str: str) -> float:
-    """Convert a wavelength value to micrometres based on unit string or magnitude."""
+    """Convert a wavelength value to micrometres based on its unit string.
+
+    Raises:
+        ValueError: If the unit is not recognised (guessing would mislabel the frame).
+    """
     u = unit_str.strip().lower()
     if u in ("um", "micron", "microns", "micrometre", "micrometer", ""):
         return float(value)
@@ -383,7 +403,19 @@ def _convert_wavelength_to_um(value: float, unit_str: str) -> float:
         return float(value) * 1e-4
     if u == "cm":
         return float(value) * 1e4
-    return float(value)
+    raise ValueError(f"Unrecognised wavelength unit {unit_str!r}")
+
+
+def _accept_wavelength_um(value: float, unit_str: str) -> float | None:
+    """Return the wavelength in um, or None if the unit is unknown or the value implausible."""
+    try:
+        um = _convert_wavelength_to_um(value, unit_str)
+    except ValueError:
+        return None
+    lo, hi = PLAUSIBLE_WAVELENGTH_UM
+    if np.isfinite(um) and lo <= um <= hi:
+        return um
+    return None
 
 
 class warnings_suppressed:
@@ -1187,7 +1219,8 @@ def _generate_synthetic_frames(
     return tuple(frames)
 
 
-# In-process LRU cache keyed by (mode, cache_root_str, rounded_ra, rounded_dec, rounded_fov)
+# In-process LRU cache keyed by (mode, cache_root_str, rounded_ra, rounded_dec, rounded_fov).
+# Not thread-safe on its own: app.py serializes pipeline builds with a lock.
 _MEMORY_CACHE: dict[tuple[str, str, float, float, float], tuple[Frame, ...]] = {}
 _MEMORY_CACHE_MAX: int = 32
 
@@ -1195,6 +1228,51 @@ _MEMORY_CACHE_MAX: int = 32
 def clear_memory_cache() -> None:
     """Clear the in-process ``get_frames`` frame cache."""
     _MEMORY_CACHE.clear()
+
+
+def _remember(key: tuple[str, str, float, float, float], frames: Sequence[Frame]) -> None:
+    """Store a defensive copy of ``frames`` as the most recently used cache entry."""
+    _MEMORY_CACHE.pop(key, None)
+    while len(_MEMORY_CACHE) >= _MEMORY_CACHE_MAX:
+        _MEMORY_CACHE.pop(next(iter(_MEMORY_CACHE)))
+    _MEMORY_CACHE[key] = _clone_frames(frames)
+
+
+def _write_incomplete_marker(cache_dir: Path, failed: int, total: int) -> None:
+    """Record (or clear) the fact that some cutouts in ``cache_dir`` failed to download."""
+    marker = cache_dir / INCOMPLETE_MARKER
+    if failed <= 0:
+        marker.unlink(missing_ok=True)
+        return
+    fd, tmp_name = tempfile.mkstemp(prefix=".incomplete_", suffix=".tmp", dir=str(cache_dir))
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    try:
+        tmp_path.write_text(json.dumps({"failed": int(failed), "total": int(total)}), "utf-8")
+        os.replace(tmp_path, marker)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+def _read_incomplete_marker(cache_dir: Path) -> int:
+    """Return how many cutouts the marker says are missing (0 when there is no marker)."""
+    marker = cache_dir / INCOMPLETE_MARKER
+    if not marker.is_file():
+        return 0
+    try:
+        return max(1, int(json.loads(marker.read_text("utf-8"))["failed"]))
+    except Exception:
+        return 1  # An unreadable marker still means "do not trust this cache as complete".
+
+
+def _tag_failed_downloads(frames: Sequence[Frame], failed: int) -> None:
+    """Record the number of missing cutouts on each frame so the API can warn about it."""
+    if failed <= 0:
+        return
+    for f in frames:
+        if f.meta is None:
+            f.meta = {}
+        f.meta["failed_downloads"] = int(failed)
 
 
 def _clone_frames(
@@ -1284,23 +1362,26 @@ def get_frames(
         round(dec_norm, 4),
         round(float(fov), 2),
     )
-    if use_memory_cache and mem_key in _MEMORY_CACHE:
+    # ``live`` means "ask the archive", so it never short-circuits on the in-process cache.
+    if use_memory_cache and resolved_mode != "live" and mem_key in _MEMORY_CACHE:
         cached_source = "synthetic" if resolved_mode == "synthetic" else "cache"
+        _MEMORY_CACHE[mem_key] = _MEMORY_CACHE.pop(mem_key)  # mark most recently used
         return _clone_frames(_MEMORY_CACHE[mem_key], data_source_override=cached_source)
 
     if resolved_mode == "synthetic":
         synth_frames = _generate_synthetic_frames(ra_norm, dec_norm, fov)
         if use_memory_cache:
-            if len(_MEMORY_CACHE) >= _MEMORY_CACHE_MAX:
-                _MEMORY_CACHE.pop(next(iter(_MEMORY_CACHE)))
-            _MEMORY_CACHE[mem_key] = _clone_frames(synth_frames)
+            _remember(mem_key, synth_frames)
         return synth_frames
 
+    disk_frames: tuple[Frame, ...] = ()
+    disk_missing = 0
     if resolved_mode in ("cache", "auto"):
         hit = _find_cached_bucket(croot, ra_norm, dec_norm, fov)
         if hit is not None:
             cache_dir, found_bucket, rows = hit
-            frames = _load_frames_from_cache_dir(
+            disk_missing = _read_incomplete_marker(cache_dir)
+            disk_frames = _load_frames_from_cache_dir(
                 cache_dir,
                 rows,
                 ra=ra_norm,
@@ -1308,19 +1389,64 @@ def get_frames(
                 fov_arcsec=fov,
                 bucket_arcsec=found_bucket,
             )
-            if frames:
+            # An incomplete cache is only trusted as-is in offline ``cache`` mode; ``auto``
+            # mode retries the missing cutouts below.
+            if disk_frames and not (disk_missing and resolved_mode == "auto"):
+                _tag_failed_downloads(disk_frames, disk_missing)
                 if use_memory_cache:
-                    if len(_MEMORY_CACHE) >= _MEMORY_CACHE_MAX:
-                        _MEMORY_CACHE.pop(next(iter(_MEMORY_CACHE)))
-                    _MEMORY_CACHE[mem_key] = _clone_frames(frames)
-                return frames
+                    _remember(mem_key, disk_frames)
+                return disk_frames
         if resolved_mode == "cache":
             raise NotCachedError(
                 f"Position (RA={ra_norm:.4f}, Dec={dec_norm:.4f}, FOV={fov:.0f}\") "
                 "is not in the local cutout cache (SPHX_MODE=cache)."
             )
 
-    # live mode, or auto mode on cache miss: query IRSA TAP and download cutouts
+    # live mode, or auto mode on cache miss / incomplete cache: query IRSA TAP and download.
+    try:
+        frames = _fetch_live_frames(
+            ra_norm,
+            dec_norm,
+            fov,
+            bucket_arcsec,
+            croot,
+            max_workers=max_workers,
+            retries=retries,
+            backoff_base=backoff_base,
+            tap_query=tap_query,
+            fetcher=fetcher,
+            sleep_fn=sleep_fn,
+            progress_callback=progress_callback,
+        )
+    except DataError:
+        if disk_frames and disk_missing:
+            # The retry could not reach IRSA: serve what is on disk, flagged as incomplete,
+            # and do not memoise it so the next request tries again.
+            _tag_failed_downloads(disk_frames, disk_missing)
+            return disk_frames
+        raise
+
+    if use_memory_cache:
+        _remember(mem_key, frames)
+    return frames
+
+
+def _fetch_live_frames(
+    ra_norm: float,
+    dec_norm: float,
+    fov: float,
+    bucket_arcsec: int,
+    croot: Path,
+    *,
+    max_workers: int,
+    retries: int,
+    backoff_base: float,
+    tap_query: Callable[..., Any] | None,
+    fetcher: Callable[[str], bytes | fits.HDUList] | None,
+    sleep_fn: Callable[[float], None],
+    progress_callback: Callable[[int, int, str, bool], None] | None,
+) -> tuple[Frame, ...]:
+    """Query IRSA, download missing cutouts into the disk cache, and load them as Frames."""
     records = query_images(ra_norm, dec_norm, tap_query=tap_query)
     key = cache_key_for(ra_norm, dec_norm, bucket_arcsec)
     target_cache_dir = croot / key
@@ -1355,6 +1481,7 @@ def get_frames(
     ]
     index_rows.sort(key=lambda item: (item[1], item[0]))
     _write_index_csv(target_cache_dir, index_rows)
+    _write_incomplete_marker(target_cache_dir, len(failed_uris), len(download_jobs))
 
     frames = _load_frames_from_cache_dir(
         target_cache_dir,
@@ -1374,12 +1501,5 @@ def get_frames(
             f.meta = {}
         f.meta["data_source"] = "archive"
         f.meta["synthetic"] = False
-        if failed_uris:
-            f.meta["failed_downloads"] = len(failed_uris)
-
-    if use_memory_cache:
-        if len(_MEMORY_CACHE) >= _MEMORY_CACHE_MAX:
-            _MEMORY_CACHE.pop(next(iter(_MEMORY_CACHE)))
-        _MEMORY_CACHE[mem_key] = _clone_frames(frames)
-
+    _tag_failed_downloads(frames, len(failed_uris))
     return frames

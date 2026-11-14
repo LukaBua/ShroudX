@@ -619,10 +619,12 @@ def align_frames(
     Variance propagation note:
         ``variance`` is reprojected with ``reproject_interp(..., order='bilinear')``
         directly (sum w_i * V_i) rather than weighting by squared interpolation
-        weights (sum w_i^2 * V_i). For a half-pixel shift, this overestimates
-        per-pixel sigma by up to 2x (variance by up to 4x) and introduces positive
-        covariance between adjacent pixels, while avoiding underestimation of
-        integrated noise in multi-pixel apertures when covariance is neglected.
+        weights (sum w_i^2 * V_i). For a uniform input variance V and a half-pixel
+        shift, the reprojected variance is V while the uncorrelated propagated value
+        is 0.5 * V, so per-pixel variance is overestimated by up to 2x (sigma by up
+        to sqrt(2)). Interpolation also introduces positive covariance between
+        adjacent pixels, and the conservative per-pixel value avoids underestimating
+        integrated noise in multi-pixel apertures when that covariance is neglected.
 
     Args:
         frames: Non-empty sequence of ``Frame`` objects with valid WCS.

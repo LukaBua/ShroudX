@@ -27,7 +27,7 @@ function harness() {
   const calls=[];
   const context=vm.createContext({document,location,history:{replaceState(_a,_b,url){location.href=String(url);}},
     URL,URLSearchParams,AbortController,Image:class{async decode(){}},navigator:{},
-    window:{addEventListener(){}},setInterval,clearInterval,
+    window:{addEventListener(){}},setInterval,clearInterval,setTimeout:fn=>fn(),
     fetch:async (url)=>{calls.push(url);throw Error('API unavailable');}
   });
   vm.runInContext(script,context);
@@ -72,4 +72,34 @@ test('API mode uses contract fields, preloads PNGs and excludes UI-only query pa
 test('empty coverage produces an empty state, preserving structured server errors',async()=>{
   const h=harness();h.context.fetch=async()=>({ok:false,status:404,json:async()=>({error:{code:'no_coverage',message:'No SPHEREx coverage here.'}})});
   await h.run('load()');assert.equal(h.el('placeholder').textContent,'No SPHEREx coverage here.');assert.equal(h.el('play').disabled,true);
+});
+
+test('display filters never alter API selection and reset to neutral',()=>{
+  const h=harness();
+  const before=h.run('params().toString()');
+  h.el('brightness').value='150';h.el('contrast').value='80';
+  h.el('brightness').oninput();
+  assert.equal(h.el('sky').style.filter,'brightness(150%) contrast(80%)');
+  assert.equal(h.run('params().toString()'),before);
+  h.el('resetDisplay').onclick();
+  assert.equal(h.el('sky').style.filter,'brightness(100%) contrast(100%)');
+});
+
+test('GIF download uses loaded selection and speed, reports JSON errors without disturbing images',async()=>{
+  const h=harness();
+  h.run('meta=previewMeta(params());active=params();controller=new AbortController()');
+  h.el('target').value='An unsaved different target';h.el('speed').value='750';
+  h.context.fetch=async url=>{
+    h.calls.push(url);
+    return {ok:false,status:502,json:async()=>({error:{message:'Archive unavailable.'}})};
+  };
+  await h.el('downloadGif').onclick();
+  const u=new URL(h.calls[0],'http://localhost');
+  assert.equal(u.pathname,'/api/blink.gif');
+  assert.equal(u.searchParams.get('target'),'WISE 0855-0714');
+  assert.equal(u.searchParams.get('speed'),'750');
+  assert.equal(u.searchParams.has('brightness'),false);
+  assert.equal(h.el('gifStatus').textContent,'Archive unavailable.');
+  assert.equal(h.el('downloadGif').disabled,false);
+  assert.equal(h.run('meta.n_frames'),6);
 });
