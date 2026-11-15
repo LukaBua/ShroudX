@@ -92,8 +92,8 @@ class Params:
         self,
         ra: str | None = Query(None, description="RA, degrees or 08h55m10.8s"),
         dec: str | None = Query(None, description="Dec, degrees or -07d14m42s"),
-        target: str | None = Query(None, description="Object name, e.g. WISE0855"),
-        fov: float = Query(120.0, ge=30.0, le=600.0, description="Field of view, arcsec"),
+        target: str | None = Query(None, description="Object name, e.g. Barnard"),
+        fov: float = Query(240.0, ge=30.0, le=600.0, description="Field of view, arcsec"),
         mode: str = Query("blink", pattern="^(blink|stack|diff)$"),
         detector: int | None = Query(None, ge=1, le=6),
         wmin: float | None = Query(None, ge=0.7, le=5.1),
@@ -363,12 +363,65 @@ def resolve_epoch_pair(p: Params, group: list, epochs: list) -> tuple[int, int]:
     return min(ep_a, max(0, len(epochs) - 1)), min(ep_b, max(0, len(epochs) - 1))
 
 
+def _select_saturated_diff_cores(
+    arr_clean: np.ndarray,
+    u_mask: np.ndarray,
+    reference_flux: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return multi-pixel unreliable cores on bright stars overlapping difference emission."""
+    import scipy.ndimage
+
+    cand = u_mask
+    if reference_flux is not None and reference_flux.shape == u_mask.shape:
+        ref = np.asarray(reference_flux, dtype=float)
+        sky_px = (~u_mask) & np.isfinite(ref)
+        sky_med = float(np.median(ref[sky_px])) if sky_px.any() else 0.0
+        # Exclude empty-sky SUR_ERROR trails so hatching appears only on bright stellar cores
+        cand = u_mask & np.isfinite(ref) & ((ref - sky_med) > 8.0)
+
+    active = cand & (np.abs(arr_clean) > 3.0)
+    if not active.any():
+        return np.zeros_like(u_mask, dtype=bool)
+    # Bridge the narrow zero-crossing midline inside a dipole core without spilling far into sky
+    bridged = cand & scipy.ndimage.binary_dilation(active, iterations=1)
+    labels, n_comp = scipy.ndimage.label(bridged)
+    if n_comp == 0:
+        return np.zeros_like(u_mask, dtype=bool)
+    sizes = np.bincount(labels.ravel())
+    keep = np.zeros(n_comp + 1, dtype=bool)
+    for cid in range(1, n_comp + 1):
+        if sizes[cid] >= 4:
+            keep[cid] = True
+    return keep[labels]
+
+
+def _style_saturated_core_rgb(im: Image.Image, bright_u: np.ndarray) -> Image.Image:
+    """Overlay a soft frosted veil and subtle hatch on saturated difference cores."""
+    import scipy.ndimage
+
+    mask_u8 = (bright_u.astype(np.uint8)) * 255
+    mask_img = Image.fromarray(mask_u8).resize(im.size, Image.Resampling.NEAREST)
+    m = np.asarray(mask_img) > 0
+    if not m.any():
+        return im
+    rgb = np.asarray(im, dtype=np.float32).copy()
+    veil_w = scipy.ndimage.gaussian_filter(m.astype(np.float32), sigma=1.2) * 0.24
+    veil = np.array([24.0, 32.0, 46.0], dtype=np.float32)
+    rgb = rgb * (1.0 - veil_w[..., None]) + veil * veil_w[..., None]
+    yy, xx = np.indices(rgb.shape[:2])
+    hatch = m & (((yy + xx) % 8) < 2)
+    rgb[hatch] += 10.0
+    return Image.fromarray(np.clip(rgb, 0.0, 255.0).astype(np.uint8))
+
+
 def to_png(
     arr: np.ndarray,
     lo: float | None = None,
     hi: float | None = None,
     cmap: str | mcolors.Colormap = "gray",
     smooth: bool = True,
+    unreliable_mask: np.ndarray | None = None,
+    reference_flux: np.ndarray | None = None,
 ) -> bytes:
     arr = np.asarray(arr, float)
     valid = arr[np.isfinite(arr)]
@@ -397,6 +450,14 @@ def to_png(
         hi = max(c_peak, med + 4.5 * sigma)
 
     arr_clean = np.nan_to_num(arr, nan=lo)
+    bright_u: np.ndarray | None = None
+    if unreliable_mask is not None:
+        u_mask = np.asarray(unreliable_mask, dtype=bool)
+        if u_mask.shape == arr.shape and u_mask.any() and (~u_mask).any():
+            # Bridge saturated and unusable detector pixels visually rather than stamping black holes
+            arr_clean = ss.inpaint_bad_pixels(arr_clean, u_mask)
+            bright_u = _select_saturated_diff_cores(arr_clean, u_mask, reference_flux=reference_flux)
+
     spread = max(hi - lo, 1e-12)
     norm = np.clip((arr_clean - lo) / spread, 0.0, 1.0)
     if cmap == "gray":
@@ -423,6 +484,9 @@ def to_png(
     else:
         rgba = (cm(norm) * 255).astype(np.uint8)
         im = Image.fromarray(rgba).convert("RGB").resize((DISPLAY_SIZE, DISPLAY_SIZE), Image.NEAREST)
+
+    if bright_u is not None and bright_u.any():
+        im = _style_saturated_core_rgb(im, bright_u)
 
     im = im.transpose(Image.FLIP_TOP_BOTTOM)  # astronomical convention: bottom = south
     buf = io.BytesIO()
@@ -565,8 +629,20 @@ def image(
 
     # diff mode: later minus earlier, shown as a z-score map
     ep_a, ep_b = resolve_epoch_pair(p, group, epochs)
-    z = _cached_epoch_diff(*key[:-1], ep_a, ep_b, key[-1])["z"]
-    return Response(to_png(z, lo=-8, hi=8, cmap=ASTRO_DIFF_CMAP, smooth=smooth), media_type="image/png")
+    diff_st = _cached_epoch_diff(*key[:-1], ep_a, ep_b, key[-1])
+    ref_flux = np.fmax(diff_st["earlier"], diff_st["later"])
+    return Response(
+        to_png(
+            diff_st["z"],
+            lo=-8,
+            hi=8,
+            cmap=ASTRO_DIFF_CMAP,
+            smooth=smooth,
+            unreliable_mask=diff_st["unreliable"],
+            reference_flux=ref_flux,
+        ),
+        media_type="image/png",
+    )
 
 
 @app.get("/api/detections")
@@ -678,6 +754,7 @@ def catalog_overlay(p: Params = Depends()):
             epoch=epoch,
             cache_root=data.CACHE_DIR,
             mode=data.mode(),
+            timeout=gaia.default_timeout_sec(),
         )
     except gaia.GaiaNotCachedError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

@@ -1,6 +1,6 @@
 {
   "verdict": "PASS",
-  "base_url": "https://shroudx.us",
+  "base_url": "http://127.0.0.1:8000",
   "target": "WISE 0855-0714",
   "repeats": 3,
   "data_mode": "auto",
@@ -9,37 +9,37 @@
   ],
   "checks": {
     "/health": {
-      "url": "https://shroudx.us/health",
+      "url": "http://127.0.0.1:8000/health",
       "status_code": 200,
       "verdict": "PASS",
-      "latency_ms_mean": 380.65,
-      "latency_ms_sigma": 111.68,
+      "latency_ms_mean": 26.3,
+      "latency_ms_sigma": 20.63,
       "reasons": []
     },
     "/api/meta": {
-      "url": "https://shroudx.us/api/meta?target=WISE+0855-0714",
+      "url": "http://127.0.0.1:8000/api/meta?target=WISE+0855-0714",
       "status_code": 200,
       "verdict": "PASS",
-      "latency_ms_mean": 1215.88,
-      "latency_ms_sigma": 1556.83,
+      "latency_ms_mean": 494.33,
+      "latency_ms_sigma": 839.58,
       "reasons": []
     },
     "/api/image.png": {
-      "url": "https://shroudx.us/api/image.png?target=WISE+0855-0714&mode=blink&index=0",
+      "url": "http://127.0.0.1:8000/api/image.png?target=WISE+0855-0714&mode=blink&index=0",
       "status_code": 200,
       "verdict": "PASS",
-      "latency_ms_mean": 315.68,
-      "latency_ms_sigma": 54.17,
+      "latency_ms_mean": 11.79,
+      "latency_ms_sigma": 8.55,
       "reasons": []
     },
     "/api/motion": {
-      "url": "https://shroudx.us/api/motion?target=WISE+0855-0714",
+      "url": "http://127.0.0.1:8000/api/motion?target=WISE+0855-0714",
       "status_code": 200,
       "verdict": "PASS",
-      "latency_ms_mean": 294.47,
-      "latency_ms_sigma": 14.48,
+      "latency_ms_mean": 17.03,
+      "latency_ms_sigma": 8.89,
       "reasons": []
     }
   },
-  "command": "python scripts/smoke_test.py --url https://shroudx.us"
+  "command": "python scripts/smoke_test.py"
 }

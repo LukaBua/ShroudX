@@ -27,19 +27,11 @@ downloads
 *secret*
 *credentials*
 
-# Frontend/OS artifacts & unbundled scratch caches
-**/dist
-**/node_modules
-**/build
-**/.parcel-cache
-**/*.tsbuildinfo
+# Frontend/OS artifacts
 dist
 build
 .parcel-cache
 node_modules
-cache/detector-2
-cache/ra279.2347*
-cache/selection-ra279.2347*
 spaceapps/
 .DS_Store
 Thumbs.db

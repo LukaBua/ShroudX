@@ -33,7 +33,6 @@ COPY --chown=appuser:appuser static/ /app/static/
 COPY --chown=appuser:appuser data/ /app/data/
 COPY --chown=appuser:appuser scripts/ /app/scripts/
 COPY --chown=appuser:appuser cache/ /app/cache/
-RUN mkdir -p /app/results && chown -R appuser:appuser /app/results
 
 USER appuser
 
