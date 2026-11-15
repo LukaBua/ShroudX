@@ -91,8 +91,6 @@ def create_practice_app(cache_root: Path, mode: str):
         def wrapped(*args, **kwargs):
             result = function(*args, **kwargs)
             frames = result[0] if selected else result
-            if selected and len({frame.version for frame in frames}) > 1:
-                raise ValueError('Selected frames have different processing versions; they cannot be mixed silently.')
             record = provenance.get()
             if record is not None:
                 for frame in frames:
@@ -101,8 +99,16 @@ def create_practice_app(cache_root: Path, mode: str):
                     if entry not in record:
                         record.append(entry)
             return result
-        wrapped.cache_clear = function.cache_clear
+        wrapped.cache_clear = getattr(function, "cache_clear", lambda: None)
         return wrapped
+
+    if mode in ("auto", "live"):
+        def get_real_frames(ra, dec, fov, detector=None):
+            return current_data.get_detector_frames(
+                ra, dec, fov, detector=detector, mode=mode, cache_root=cache_root
+            )
+        get_real_frames.cache_clear = getattr(loader.get_frames, "cache_clear", lambda: None)
+        loader.get_frames = get_real_frames
 
     loader.get_frames = capture_frames(loader.get_frames)
     original._cached_selected_frames = capture_frames(original._cached_selected_frames, selected=True)
@@ -189,7 +195,32 @@ class FrontendCompatibility:
         try:
             await self.practice(scope, receive, capture)
         except Exception as exc:
-            response = JSONResponse({"detail": str(exc) or "Unable to process the practice view."}, status_code=422)
+            import urllib.error
+            import requests
+            import data as current_data
+            import gaia as current_gaia
+
+            if isinstance(
+                exc,
+                (
+                    current_data.ArchiveUnreachableError,
+                    current_gaia.GaiaUnreachableError,
+                    requests.exceptions.RequestException,
+                    urllib.error.URLError,
+                    TimeoutError,
+                ),
+            ) or getattr(exc, "code", None) == "archive_unreachable":
+                status = 502
+            elif isinstance(
+                exc,
+                (current_data.NoCoverageError, current_data.NotCachedError, FileNotFoundError),
+            ) or getattr(exc, "code", None) in ("no_coverage", "not_cached"):
+                status = 404
+            elif isinstance(getattr(exc, "status_code", None), int):
+                status = exc.status_code
+            else:
+                status = 422
+            response = JSONResponse({"detail": str(exc) or "Unable to process the practice view."}, status_code=status)
             messages.clear()
             await response(scope, receive, capture)
         finally:

@@ -23,12 +23,15 @@ from pathlib import Path
 
 import matplotlib.colors as mcolors
 import numpy as np
+from astropy.time import Time
 from astropy.wcs import FITSFixedWarning
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from matplotlib import colormaps
 from PIL import Image
+
+import gaia
 
 from . import catalogs
 from . import data
@@ -139,7 +142,13 @@ def _cached_selected_frames(
     data_mode: str,
 ) -> tuple[tuple, int, str]:
     try:
-        frames = data.get_frames(ra5, dec5, fov)
+        if detector is not None:
+            try:
+                frames = data.get_frames(ra5, dec5, fov, detector=detector)
+            except TypeError:
+                frames = data.get_frames(ra5, dec5, fov)
+        else:
+            frames = data.get_frames(ra5, dec5, fov)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     if not frames:
@@ -655,36 +664,68 @@ def spectrum(p: Params = Depends()):
 
 @app.get("/api/catalog")
 def catalog_overlay(p: Params = Depends()):
-    """Cross-match and return Gaia DR3 and AllWISE catalog sources in the field."""
-    references = catalogs.get_catalog_sources(p.ra, p.dec, p.fov, p.target)
+    """Cross-match and return real Gaia DR3 (and AllWISE for Y-dwarfs) sources in the field."""
     group, _, _ = selected_frames(p)
     fwcs = group[0].wcs
+    ny, nx = group[0].image.shape
+    epoch = float(Time(np.mean([f.mjd for f in group]), format="mjd", scale="utc").jyear)
+    try:
+        references, cat_meta = catalogs.get_catalog_sources(
+            p.ra,
+            p.dec,
+            p.fov,
+            p.target,
+            epoch=epoch,
+            cache_root=data.CACHE_DIR,
+            mode=data.mode(),
+        )
+    except gaia.GaiaNotCachedError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except gaia.GaiaUnreachableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
     sources = []
     for reference in references:
-        # Catalogue references are not detections and are not epoch-propagated here.
         source = {**reference, "x": None, "y": None, "position_kind": "reference"}
-        if reference["catalog"] == "Cross-match":
-            source["position_kind"] = "illustrative"
-        elif fwcs is not None:
+        if fwcs is not None:
             from astropy import units as u
             from astropy.coordinates import SkyCoord
 
             x, y = fwcs.world_to_pixel(SkyCoord(reference["ra_deg"] * u.deg, reference["dec_deg"] * u.deg))
             if np.isfinite(x) and np.isfinite(y):
-                source.update(x=float(x), y=float(y))
+                fx, fy = float(x), float(y)
+                inside = -0.5 <= fx <= nx - 0.5 and -0.5 <= fy <= ny - 0.5
+                if not inside and not reference.get("is_primary"):
+                    continue
+                source.update(x=fx, y=fy)
         sources.append(source)
+        if len(sources) >= 60:
+            break
+
+    if cat_meta.get("source") == "synthetic":
+        provenance = "Synthetic / simulation mode — Gaia DR3 / AllWISE catalogue rows are never fabricated."
+    elif cat_meta.get("has_allwise"):
+        provenance = (
+            f"Real ESA Gaia DR3 field stars (propagated from J2016.0 to epoch {cat_meta['epoch']}) "
+            f"+ Kirkpatrick et al. (2021) AllWISE astrometry for WISE 0855-0714."
+        )
+    else:
+        provenance = (
+            f"Real ESA Gaia DR3 catalogue sources propagated from J2016.0 to "
+            f"mean observation epoch {cat_meta['epoch']} (no placeholder entries)."
+        )
+
     return {
         "target": p.target,
         "ra": p.ra,
         "dec": p.dec,
         "fov": p.fov,
+        "epoch": cat_meta.get("epoch"),
         "count": len(sources),
         "sources": sources,
+        "warnings": cat_meta.get("warnings", []),
         "has_sky_projection": fwcs is not None,
-        "provenance": (
-            "Stored benchmark catalogue references; no live catalogue search or date"
-            " propagation is performed."
-        ),
+        "provenance": provenance,
     }
 
 

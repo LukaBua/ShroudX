@@ -2,7 +2,7 @@ import { preloadImages } from './blinkImages';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { ArrowUpRight, Search, Play, Pause, SkipBack, SkipForward, Maximize2, Minimize2, Download, Link2, SlidersHorizontal, Crosshair, LoaderCircle, AlertCircle, X, Info, ChevronDown, RotateCcw } from 'lucide-react';
+import { ArrowUpRight, Search, Play, Pause, SkipBack, SkipForward, Maximize2, Minimize2, Download, Film, Link2, SlidersHorizontal, Crosshair, LoaderCircle, AlertCircle, X, Info, ChevronDown, RotateCcw } from 'lucide-react';
 
 import { dateFromMJD, getJSON, DETECTORS, type Meta, type Motion, type Spectrum, type Pixel, type Catalog, type Detections } from './api';
 
@@ -24,6 +24,10 @@ import CatalogPanel from './CatalogPanel';
 
 import CriteriaDialog from './CriteriaDialog';
 
+import ViewerLegend from './ViewerLegend';
+
+import { triggerAnnotatedPngDownload, type ExportMode } from './downloadImage';
+
 
 
 type Settings = { target: string; ra: string; dec: string; fov: string; detector: string; wmin: string; wmax: string; mode: string; epoch_a: string; epoch_b: string; clean: boolean; smooth: boolean; show_mask: boolean; speed: string; show_compass: boolean; show_vector: boolean; show_detections: boolean; show_catalog: boolean };
@@ -31,6 +35,14 @@ type Settings = { target: string; ra: string; dec: string; fov: string; detector
 const defaults: Settings = { target: 'WISE0855', ra: '', dec: '', fov: '120', detector: '', wmin: '', wmax: '', mode: 'blink', epoch_a: '', epoch_b: '', clean: true, smooth: true, show_mask: false, speed: '400', show_compass: true, show_vector: true, show_detections: true, show_catalog: true };
 
 const presets = [['WISE0855', 'WISE 0855'], ['Barnard', 'Barnard’s Star'], ['EpsilonIndiB', 'Epsilon Indi B'], ['RWAurigae', 'RW Aurigae'], ['RDraconis', 'R Draconis']];
+
+const presetDisplayNames: Record<string, string> = {
+  WISE0855: 'WISE 0855-0714',
+  Barnard: "Barnard's Star",
+  EpsilonIndiB: 'Epsilon Indi B',
+  RWAurigae: 'RW Aurigae',
+  RDraconis: 'R Draconis',
+};
 
 function readSettings(): Settings {
 
@@ -47,6 +59,14 @@ function readSettings(): Settings {
   }
 
   if ((q.has('ra') || q.has('dec')) && !q.has('target')) settings.target = '';
+
+  if (q.has('fov') && settings.fov.trim() !== '') {
+
+    const n = Number(settings.fov);
+
+    if (Number.isFinite(n)) settings.fov = String(Math.min(480, Math.max(30, n)));
+
+  }
 
   if (!['blink', 'stack', 'diff'].includes(settings.mode)) settings.mode = 'blink';
 
@@ -93,6 +113,8 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
   const [criteriaOpen, setCriteriaOpen] = useState(false);
 
   const [pixel, setPixel] = useState<Pixel | null>(null), [pixelBusy, setPixelBusy] = useState(false);
+
+  const [pngBusy, setPngBusy] = useState(false), [gifBusy, setGifBusy] = useState(false);
 
   const request = useRef<AbortController | null>(null), pixelRequest = useRef<AbortController | null>(null);
 
@@ -238,7 +260,13 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
 
 
 
-  function submit(e: FormEvent) { e.preventDefault(); void load(form); }
+  function submit(e: FormEvent) {
+    e.preventDefault();
+    const targetChanged = !applied || form.target !== applied.target || form.ra !== applied.ra || form.dec !== applied.dec;
+    const next = targetChanged ? { ...form, epoch_a: '', epoch_b: '' } : form;
+    if (targetChanged) setForm(next);
+    void load(next);
+  }
 
   function change(key: keyof Settings, value: string | boolean) { setForm(s => ({ ...s, [key]: value })); }
 
@@ -292,6 +320,88 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
 
     catch { setNotice('Your view is saved in the address bar. Copy the URL to share it.'); }
 
+  }
+
+  function formatEpochLabel(epochId: string | number | undefined): string | null {
+    if (epochId === undefined || epochId === '') return null;
+    const ep = viewerEpochs.find(e => String(e.epoch) === String(epochId));
+    return ep ? `Pass ${ep.epoch} (${dateFromMJD(ep.start_mjd)})` : `Pass ${epochId}`;
+  }
+
+  async function downloadPng() {
+    if (!meta || !applied || !images[index] || pngBusy) return;
+    setPngBusy(true);
+    try {
+      const wls = meta.frames.map(f => f.wavelength).filter(Number.isFinite);
+      const wavelengthRangeUm: [number, number] | null = wls.length ? [Math.min(...wls), Math.max(...wls)] : null;
+      const starName = (applied.target && presetDisplayNames[applied.target]) || applied.target || meta.label;
+      const recA = applied.epoch_a || meta.recommended_epochs?.[0];
+      const recB = applied.epoch_b || meta.recommended_epochs?.[meta.recommended_epochs.length - 1];
+      await triggerAnnotatedPngDownload(images[index], {
+        mode: (applied.mode || 'blink') as ExportMode,
+        targetName: starName,
+        ra: meta.ra,
+        dec: meta.dec,
+        detector: applied.detector || meta.detector,
+        fovArcsec: meta.fov,
+        wavelengthUm: currentFrame?.wavelength ?? null,
+        wavelengthRangeUm,
+        frameIndex: index,
+        frameCount: meta.n_frames,
+        frameDate: currentFrame ? dateFromMJD(currentFrame.mjd) : null,
+        epochALabel: formatEpochLabel(recA),
+        epochBLabel: formatEpochLabel(recB),
+        pmTotal: motion?.pm_total ?? null,
+        pmTotalErr: motion?.pm_total_err ?? null,
+        positionAngleDeg: motion?.position_angle_deg ?? null,
+        diffPalette: 'color',
+        synthetic: meta.mock,
+        smooth: applied.smooth,
+        northUp: meta.sky_grid?.north_up ?? true,
+      });
+      setNotice('Downloaded annotated PNG image.');
+    } catch (err) {
+      setNotice((err as Error).message || 'Could not export annotated PNG.');
+    } finally {
+      setPngBusy(false);
+    }
+  }
+
+  async function downloadGif() {
+    if (!meta || !applied || gifBusy) return;
+    setGifBusy(true);
+    try {
+      const q = new URLSearchParams();
+      if (applied.target) q.set('target', presetDisplayNames[applied.target] || applied.target);
+      else if (applied.ra && applied.dec) { q.set('ra', applied.ra); q.set('dec', applied.dec); }
+      else { q.set('ra', String(meta.ra)); q.set('dec', String(meta.dec)); }
+      if (applied.fov) q.set('fov', applied.fov);
+      if (applied.detector) q.set('detector', applied.detector);
+      if (applied.wmin && applied.wmax) { q.set('wmin', applied.wmin); q.set('wmax', applied.wmax); }
+      q.set('speed', form.speed || '400');
+      const r = await fetch('/api/blink.gif?' + q.toString());
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body?.error?.message || body?.detail || `GIF export failed (${r.status}).`);
+      }
+      const ctype = r.headers.get('content-type') || '';
+      if (!ctype.includes('image/gif')) throw new Error('GIF endpoint did not return an image/gif.');
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const slug = (applied.target || `${meta.ra.toFixed(2)}_${meta.dec.toFixed(2)}`).replace(/[^a-zA-Z0-9._-]+/g, '-').toLowerCase();
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `shroudx-${slug}-blink.gif`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setNotice('Downloaded annotated Blink GIF.');
+    } catch (err) {
+      setNotice((err as Error).message || 'Could not download Blink GIF.');
+    } finally {
+      setGifBusy(false);
+    }
   }
 
   function inspect(e: React.MouseEvent<HTMLDivElement>) {
@@ -370,7 +480,7 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
 
           {inputMode === 'name' ? <label className="field-label">TARGET NAME<div className="search-field"><Search size={16} /><input aria-label="Target name" value={form.target} onChange={e => change('target', e.target.value)} placeholder="e.g. Barnard’s Star" required /></div></label> : <div className="coordinate-fields"><label className="field-label">RIGHT ASCENSION<input aria-label="Right ascension" value={form.ra} onChange={e => change('ra', e.target.value)} placeholder="133.75990" required /></label><label className="field-label">DECLINATION<input aria-label="Declination" value={form.dec} onChange={e => change('dec', e.target.value)} placeholder="−7.24221" required /></label><p className="field-help">Decimal degrees or sexagesimal coordinates.</p></div>}
 
-          <label className="field-label fov-label">FIELD OF VIEW <input className="fov-number" aria-label="Exact field of view in arcseconds" type="number" min="30" max="600" value={form.fov} onChange={e => change('fov', e.target.value)} /><input type="range" aria-label="Field of view" min="30" max="600" step="10" value={form.fov} onChange={e => change('fov', e.target.value)} /><span className="range-labels"><span>30″ · close</span><span>600″ · wide</span></span></label>
+          <label className="field-label fov-label">FIELD OF VIEW <input className="fov-number" aria-label="Exact field of view in arcseconds" type="number" min="30" max="480" value={form.fov} onChange={e => change('fov', e.target.value)} /><input type="range" aria-label="Field of view" min="30" max="480" step="10" value={form.fov} onChange={e => change('fov', e.target.value)} /><span className="range-labels"><span>30″ · close</span><span>480″ · wide</span></span></label>
 
           <button type="button" className="advanced-toggle" aria-expanded={advanced} onClick={() => setAdvanced(!advanced)}><SlidersHorizontal size={14} /> Observation settings <ChevronDown size={14} className={advanced ? 'rotated' : ''} /></button>
 
@@ -388,7 +498,7 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
 
       <div className="observation-panel">
 
-        <div className="observation-toolbar"><div className="segmented mode-tabs" aria-label="Observation mode">{[['blink', 'Blink'], ['stack', 'Stack'], ['diff', 'Difference']].map(([value, label]) => <button disabled={busy} type="button" key={value} onClick={() => mode(value)} className={form.mode === value ? 'active' : ''}>{label}</button>)}</div><div className="toolbar-actions">{aladinUrl && <a className="aladin-link" href={aladinUrl} target="_blank" rel="noreferrer" title="Open the current field in CDS Aladin Lite">CDS Aladin <ArrowUpRight size={13} /></a>}<button className="icon-button" disabled={!meta || busy} onClick={share} title="Copy view link" aria-label="Copy view link"><Link2 size={16} /></button>{images[index] ? <a className="icon-button" href={images[index]} download={`spherex-${applied?.target || 'field'}-${applied?.mode}-${index}.png`} title="Download displayed PNG" aria-label="Download displayed PNG"><Download size={16} /></a> : <button disabled className="icon-button" aria-label="Download displayed PNG"><Download size={16} /></button>}</div></div>
+        <div className="observation-toolbar"><div className="segmented mode-tabs" aria-label="Observation mode">{[['blink', 'Blink'], ['stack', 'Stack'], ['diff', 'Difference']].map(([value, label]) => <button disabled={busy} type="button" key={value} onClick={() => mode(value)} className={form.mode === value ? 'active' : ''}>{label}</button>)}</div><div className="toolbar-actions">{aladinUrl && <a className="aladin-link" href={aladinUrl} target="_blank" rel="noreferrer" title="Open the current field in CDS Aladin Lite">CDS Aladin <ArrowUpRight size={13} /></a>}<button type="button" className="icon-button" disabled={!meta || busy} onClick={share} title="Copy view link" aria-label="Copy view link"><Link2 size={16} /></button><button type="button" className="small-button export-button" disabled={!images[index] || busy || pngBusy} onClick={downloadPng} title="Download PNG with mode, star name, and legend inside the image" aria-label="Download annotated PNG"><Download size={14} /><span>{pngBusy ? 'Saving…' : 'Photo PNG'}</span></button><button type="button" className="small-button export-button" disabled={!meta || busy || gifBusy || meta.n_frames < 2} onClick={downloadGif} title="Download animated Blink GIF with mode and star caption" aria-label="Download Blink GIF"><Film size={14} /><span>{gifBusy ? 'Building…' : 'Blink GIF'}</span></button></div></div>
 
         {form.mode === 'diff' && <div className="epoch-select"><span>Compare periods</span><label>A<select aria-label="Earlier epoch" value={form.epoch_a} onChange={e => change('epoch_a', e.target.value)}><option value="">Recommended</option>{viewerEpochs.map(ep => <option key={ep.epoch} value={ep.epoch}>{ep.epoch} · {dateFromMJD(ep.start_mjd)} · {ep.n_frames}f</option>)}</select></label><span>→</span><label>B<select aria-label="Later epoch" value={form.epoch_b} onChange={e => change('epoch_b', e.target.value)}><option value="">Recommended</option>{viewerEpochs.map(ep => <option key={ep.epoch} value={ep.epoch}>{ep.epoch} · {dateFromMJD(ep.start_mjd)} · {ep.n_frames}f</option>)}</select></label><button disabled={busy} onClick={() => load(form)} className="small-button">Apply</button></div>}
 
@@ -404,13 +514,22 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
 
           {error && <div className="viewer-message error-message" role="alert"><AlertCircle size={26} /><h3>We couldn’t open this field.</h3><p>{error}</p><button className="small-button" onClick={() => load(form)}><RotateCcw size={13} /> Try again</button></div>}
 
-          {meta && <><div className="viewport-label mono">{meta.mock ? 'SIMULATION' : 'SPHEREx / INFRARED'}<br /><span>{applied?.target || `${meta.ra.toFixed(4)}°, ${meta.dec.toFixed(4)}°`}</span></div><div className="viewport-cross cross-tl" /><div className="viewport-cross cross-tr" /><div className="viewport-cross cross-bl" /><div className="viewport-cross cross-br" /><span className="viewport-bottom mono">{isBlink && currentFrame ? `${dateFromMJD(currentFrame.mjd)} · MJD ${currentFrame.mjd.toFixed(2)} · Epoch ${currentFrame.epoch}` : applied?.mode === 'stack' ? 'COMBINED OBSERVATIONS' : `PERIOD ${applied?.epoch_b} − PERIOD ${applied?.epoch_a}`}</span>{meta.mock && <span className="mock-note">Synthetic sources · not an image of the named target</span>}</>}
+          {meta && <><div className="viewport-label mono">{meta.mock ? 'SIMULATION' : 'SPHEREx / INFRARED'}<br /><span>{(applied?.target && presetDisplayNames[applied.target]) || applied?.target || `${meta.ra.toFixed(4)}°, ${meta.dec.toFixed(4)}°`}</span></div><div className="viewport-cross cross-tl" /><div className="viewport-cross cross-tr" /><div className="viewport-cross cross-bl" /><div className="viewport-cross cross-br" /><span className="viewport-bottom mono">{isBlink && currentFrame ? `${dateFromMJD(currentFrame.mjd)} · MJD ${currentFrame.mjd.toFixed(2)} · Epoch ${currentFrame.epoch}` : applied?.mode === 'stack' ? 'COMBINED OBSERVATIONS' : `PERIOD ${applied?.epoch_b} − PERIOD ${applied?.epoch_a}`}</span>{meta.mock && <span className="mock-note">Synthetic sources · not an image of the named target</span>}</>}
 
         </div>{meta && form.show_compass && <ScaleRail meta={meta} />}</div>
 
         <div className="playback"><div className="playback-buttons"><button className="icon-button" disabled={!isBlink || images.length < 2} onClick={() => step(-1)} aria-label="Previous frame"><SkipBack size={16} /></button><button className="play-button" disabled={!isBlink || images.length < 2} onClick={() => setPlaying(!playing)} aria-label={playing ? 'Pause animation' : 'Play animation'}>{playing ? <Pause size={17} /> : <Play size={17} fill="currentColor" />}</button><button className="icon-button" disabled={!isBlink || images.length < 2} onClick={() => step(1)} aria-label="Next frame"><SkipForward size={16} /></button></div><div className="frame-slider"><input aria-label="Observation frame" type="range" min="0" max={Math.max(1, images.length - 1)} value={index} disabled={!isBlink || images.length < 2} onChange={e => { setPlaying(false); setIndex(Number(e.target.value)); setPixel(null); }} /><span className="mono">{meta ? isBlink ? `FRAME ${String(index + 1).padStart(2, '0')} / ${images.length}` : applied?.mode.toUpperCase() : 'NO FIELD SELECTED'}</span></div><label className="speed-label">ms/frame<input aria-label="Playback speed in milliseconds" type="number" min="50" max="2000" step="50" value={form.speed} onChange={e => { change('speed', e.target.value); if (applied) history.replaceState(null, '', '?' + parameters({ ...applied, speed: e.target.value }) + '#explorer'); }} /></label></div>
 
         <div className="overlay-controls" aria-label="Viewer overlay options">{([['show_vector', 'Motion vector & track'], ['show_compass', 'Compass & scale'], ['show_detections', 'Detection lobes'], ['show_catalog', 'Gaia / WISE']] as const).map(([key, label]) => <label className="check-label" key={key}><input type="checkbox" checked={form[key]} onChange={e => toggleOverlay(key, e.target.checked)} />{label}</label>)}</div>
+
+        <ViewerLegend
+          mode={(applied?.mode || form.mode || 'blink') as ExportMode}
+          showVector={form.show_vector}
+          showDetections={form.show_detections}
+          showCatalog={form.show_catalog}
+          showMask={form.show_mask}
+          showCompass={form.show_compass}
+        />
 
         {meta && motion && form.show_vector && <MotionTrackPanel motion={motion} meta={meta} frame={currentFrame} mode={applied?.mode || 'blink'} />}
 

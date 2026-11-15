@@ -1,208 +1,29 @@
-"""catalogs.py - Multi-mission catalog cross-matching (Gaia DR3 & AllWISE).
+# AI-assisted: updated with real Gaia DR3 catalog integration.
+"""catalogs.py - Real Gaia DR3 & AllWISE catalog references for SPHEREx cutouts.
 
-Provides astronomical catalog overlays for the SPHEREx Sky-Motion Viewer.
-Includes pre-cached Gaia DR3 and AllWISE astrometry for benchmark targets
-(ensuring 100% offline demo resilience) plus optional live online queries.
+Replaces hardcoded placeholder catalog entries with real ESA Gaia DR3 astrometry
+loaded from local ``cache/gaia/`` files (or queried live via ``gaia.build_catalog``
+when running in ``auto``/``live`` mode) and propagated from J2016.0 to the mean
+observation epoch of the selected SPHEREx frames.
 """
 
 from __future__ import annotations
 
 import math
+from pathlib import Path
 from typing import Any
 
-# Benchmark catalog sources (ICRS J2016.0 / J2000 coordinates and Gaia DR3 / AllWISE photometry)
-BENCHMARK_CATALOGS: dict[str, list[dict[str, Any]]] = {
-    "wise0855": [
-        {
-            "id": "WISE J085510.83-071442.5",
-            "catalog": "AllWISE",
-            "ra_deg": 133.75990,
-            "dec_deg": -7.24221,
-            "mag": 13.97,
-            "band": "W2 (4.6 µm)",
-            "pm_ra": -8120.0,
-            "pm_dec": 690.0,
-            "pm_total": 8149.3,
-            "type": "Y-dwarf (coldest known brown dwarf, ~250 K)",
-            "is_primary": True,
-        },
-        {
-            "id": "Gaia DR3 5683416480749419136",
-            "catalog": "Gaia DR3",
-            "ra_deg": 133.77452,
-            "dec_deg": -7.23412,
-            "mag": 15.24,
-            "band": "G",
-            "pm_ra": -1.2,
-            "pm_dec": -4.5,
-            "pm_total": 4.7,
-            "type": "Stationary field star (background reference)",
-            "is_primary": False,
-        },
-        {
-            "id": "Gaia DR3 5683416480749420032",
-            "catalog": "Gaia DR3",
-            "ra_deg": 133.74821,
-            "dec_deg": -7.25105,
-            "mag": 16.81,
-            "band": "G",
-            "pm_ra": -2.1,
-            "pm_dec": -3.8,
-            "pm_total": 4.3,
-            "type": "Stationary field star (background reference)",
-            "is_primary": False,
-        },
-    ],
-    "barnard": [
-        {
-            "id": "Gaia DR3 4472832130942575872",
-            "catalog": "Gaia DR3",
-            "ra_deg": 269.44633,
-            "dec_deg": 4.76762,
-            "mag": 9.51,
-            "band": "G",
-            "pm_ra": -801.55,
-            "pm_dec": 10362.4,
-            "pm_total": 10393.3,
-            "type": "Barnard's Star (M4V red dwarf)",
-            "is_primary": True,
-        },
-        {
-            "id": "Gaia DR3 4472832130942576000",
-            "catalog": "Gaia DR3",
-            "ra_deg": 269.45821,
-            "dec_deg": 4.77810,
-            "mag": 14.82,
-            "band": "G",
-            "pm_ra": -1.5,
-            "pm_dec": -2.2,
-            "pm_total": 2.7,
-            "type": "Stationary field star",
-            "is_primary": False,
-        },
-        {
-            "id": "Gaia DR3 4472832130942574976",
-            "catalog": "Gaia DR3",
-            "ra_deg": 269.43512,
-            "dec_deg": 4.75605,
-            "mag": 16.14,
-            "band": "G",
-            "pm_ra": -0.8,
-            "pm_dec": -1.4,
-            "pm_total": 1.6,
-            "type": "Stationary field star",
-            "is_primary": False,
-        },
-    ],
-    "epsilonindib": [
-        {
-            "id": "Gaia DR3 6412595907405073152",
-            "catalog": "Gaia DR3",
-            "ra_deg": 331.09568,
-            "dec_deg": -56.80089,
-            "mag": 12.30,
-            "band": "G",
-            "pm_ra": 3961.0,
-            "pm_dec": -2539.0,
-            "pm_total": 4705.0,
-            "type": "Epsilon Indi B (T1+T6 brown dwarf binary)",
-            "is_primary": True,
-        },
-        {
-            "id": "Gaia DR3 6412595907405074304",
-            "catalog": "Gaia DR3",
-            "ra_deg": 331.11240,
-            "dec_deg": -56.79150,
-            "mag": 15.65,
-            "band": "G",
-            "pm_ra": 2.4,
-            "pm_dec": -1.8,
-            "pm_total": 3.0,
-            "type": "Background field star",
-            "is_primary": False,
-        },
-    ],
-    "rwaurigae": [
-        {
-            "id": "Gaia DR3 162955938814757376",
-            "catalog": "Gaia DR3",
-            "ra_deg": 76.95350,
-            "dec_deg": 30.40139,
-            "mag": 10.08,
-            "band": "G",
-            "pm_ra": 1.2,
-            "pm_dec": -24.1,
-            "pm_total": 24.1,
-            "type": "RW Aurigae A (Classical T Tauri variable)",
-            "is_primary": True,
-        },
-        {
-            "id": "Gaia DR3 162955938814757504",
-            "catalog": "Gaia DR3",
-            "ra_deg": 76.95420,
-            "dec_deg": 30.40100,
-            "mag": 13.41,
-            "band": "G",
-            "pm_ra": 1.1,
-            "pm_dec": -23.8,
-            "pm_total": 23.8,
-            "type": "RW Aurigae B (Binary companion)",
-            "is_primary": False,
-        },
-        {
-            "id": "Gaia DR3 162955938814758144",
-            "catalog": "Gaia DR3",
-            "ra_deg": 76.94210,
-            "dec_deg": 30.41200,
-            "mag": 15.10,
-            "band": "G",
-            "pm_ra": 0.4,
-            "pm_dec": -2.3,
-            "pm_total": 2.3,
-            "type": "Background field star",
-            "is_primary": False,
-        },
-    ],
-    "rdraconis": [
-        {
-            "id": "Gaia DR3 1642270921475631744",
-            "catalog": "Gaia DR3",
-            "ra_deg": 248.16762,
-            "dec_deg": 66.75497,
-            "mag": 7.62,
-            "band": "G",
-            "pm_ra": 4.1,
-            "pm_dec": 13.9,
-            "pm_total": 14.5,
-            "type": "R Draconis (Mira pulsating red giant variable)",
-            "is_primary": True,
-        },
-        {
-            "id": "Gaia DR3 1642270921475631872",
-            "catalog": "Gaia DR3",
-            "ra_deg": 248.17950,
-            "dec_deg": 66.76210,
-            "mag": 15.34,
-            "band": "G",
-            "pm_ra": 1.5,
-            "pm_dec": -0.4,
-            "pm_total": 1.6,
-            "type": "Background field star",
-            "is_primary": False,
-        },
-    ],
-}
+import coords as root_coords
+import gaia
+from .coords import _norm, get_target_profile
 
-# Alias keys
-BENCHMARK_CATALOGS["wise08550714"] = BENCHMARK_CATALOGS["wise0855"]
-BENCHMARK_CATALOGS["barnardsstar"] = BENCHMARK_CATALOGS["barnard"]
-BENCHMARK_CATALOGS["epsindib"] = BENCHMARK_CATALOGS["epsilonindib"]
-BENCHMARK_CATALOGS["rwaur"] = BENCHMARK_CATALOGS["rwaurigae"]
-BENCHMARK_CATALOGS["rdra"] = BENCHMARK_CATALOGS["rdraconis"]
-
-
-def _norm(name: str) -> str:
-    return "".join(ch for ch in name.lower() if ch.isalnum())
+_MAX_RETURNED_SOURCES = 200
+_MIN_RELIABLE_PARALLAX_MAS = 1.0
+_NEARBY_PARALLAX_MAS = 2.0
+_HIGH_PM_MAS_YR = 50.0
+_MODERATE_PM_MAS_YR = 15.0
+_COMPANION_MAX_SEP_ARCSEC = 30.0
+_COMPANION_MIN_PRIMARY_PM_MAS_YR = 15.0
 
 
 def _angular_sep_arcsec(ra1: float, dec1: float, ra2: float, dec2: float) -> float:
@@ -216,44 +37,281 @@ def _angular_sep_arcsec(ra1: float, dec1: float, ra2: float, dec2: float) -> flo
     return math.degrees(2.0 * math.asin(math.sqrt(min(1.0, a)))) * 3600.0
 
 
+def _is_finite_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(float(value))
+
+
+def _format_parallax_distance(parallax_mas: float | None) -> str | None:
+    """Return an honest parallax distance label only when ``parallax >= 1.0`` mas."""
+    if not _is_finite_number(parallax_mas) or float(parallax_mas) < _MIN_RELIABLE_PARALLAX_MAS:
+        return None
+    dist_pc = 1000.0 / float(parallax_mas)
+    if dist_pc < 10.0:
+        return f"~{dist_pc:.1f} pc"
+    return f"~{round(dist_pc)} pc"
+
+
+def _is_comoving_companion(row: dict[str, Any], primary_row: dict[str, Any] | None) -> bool:
+    """Return True when ``row`` closely matches the primary star's distance and PM vector."""
+    if primary_row is None or int(row["source_id"]) == int(primary_row["source_id"]):
+        return False
+    pri_pmra, pri_pmdec, pri_plx = primary_row.get("pmra"), primary_row.get("pmdec"), primary_row.get("parallax")
+    pmra, pmdec, plx = row.get("pmra"), row.get("pmdec"), row.get("parallax")
+    if not all(_is_finite_number(v) for v in (pri_pmra, pri_pmdec, pri_plx, pmra, pmdec, plx)):
+        return False
+    pri_plx_f, plx_f = float(pri_plx), float(plx)
+    if pri_plx_f <= _MIN_RELIABLE_PARALLAX_MAS or plx_f <= _MIN_RELIABLE_PARALLAX_MAS:
+        return False
+    pri_pm = math.hypot(float(pri_pmra), float(pri_pmdec))
+    if pri_pm < _COMPANION_MIN_PRIMARY_PM_MAS_YR:
+        return False
+    if _angular_sep_arcsec(primary_row["ra"], primary_row["dec"], row["ra"], row["dec"]) > _COMPANION_MAX_SEP_ARCSEC:
+        return False
+    d_pm = math.hypot(float(pmra) - float(pri_pmra), float(pmdec) - float(pri_pmdec))
+    if d_pm > max(5.0, 0.25 * pri_pm):
+        return False
+    return abs(plx_f - pri_plx_f) / max(plx_f, pri_plx_f) <= 0.30
+
+
+def _classify_gaia_source(
+    row: dict[str, Any],
+    *,
+    is_primary: bool,
+    profile: dict[str, Any] | None,
+    primary_row: dict[str, Any] | None,
+) -> str:
+    """Classify a Gaia DR3 source purely from cached astrometry (parallax and PM)."""
+    plx = row.get("parallax")
+    dist_note = _format_parallax_distance(plx)
+    if is_primary and profile is not None:
+        base = f"{profile['name']} · {profile['type']}"
+        return f"{base} · {dist_note}" if dist_note else base
+    if _is_comoving_companion(row, primary_row):
+        return f"Co-moving companion candidate ({dist_note})" if dist_note else "Co-moving companion candidate"
+
+    pm_ra = row.get("pmra")
+    pm_dec = row.get("pmdec")
+    pm_missing = bool(row.get("pm_missing", pm_ra is None or pm_dec is None))
+    if pm_missing or not (_is_finite_number(pm_ra) and _is_finite_number(pm_dec)):
+        if dist_note:
+            return f"Field source · {dist_note} (PM missing; J2016.0 pos)"
+        return "Field source (PM missing; J2016.0 pos)"
+
+    pm_total = math.hypot(float(pm_ra), float(pm_dec))
+    nearby_plx = _is_finite_number(plx) and float(plx) >= _NEARBY_PARALLAX_MAS
+    if pm_total >= _HIGH_PM_MAS_YR:
+        return f"High-PM foreground star ({dist_note})" if dist_note else "High-PM field star"
+    if pm_total >= _MODERATE_PM_MAS_YR:
+        if nearby_plx and dist_note:
+            return f"Nearby foreground star ({dist_note})"
+        if dist_note:
+            return f"Moderate-PM field star ({dist_note})"
+        return "Moderate-PM background star"
+    if nearby_plx and dist_note:
+        return f"Nearby low-PM star ({dist_note})"
+    if dist_note:
+        return f"Low-PM field star ({dist_note})"
+    return "Distant low-PM background star"
+
+
+def _wise0855_reference(
+    ra: float,
+    dec: float,
+    radius_arcsec: float,
+    epoch: float,
+) -> dict[str, Any] | None:
+    """Return the real Kirkpatrick et al. (2021) AllWISE entry for WISE 0855-0714 if in field."""
+    entry = root_coords.OFFLINE_TARGETS.get("WISE 0855-0714")
+    if entry is None or entry.ra is None or entry.dec is None or entry.pmra is None or entry.pmdec is None or entry.ref_epoch is None:
+        return None
+    ra_ep, dec_ep = root_coords.position_at_epoch(
+        ra=entry.ra,
+        dec=entry.dec,
+        pmra=entry.pmra,
+        pmdec=entry.pmdec,
+        ref_epoch=entry.ref_epoch,
+        target_epoch=epoch,
+    )
+    sep = _angular_sep_arcsec(ra, dec, ra_ep, dec_ep)
+    if sep > radius_arcsec:
+        return None
+    pm_total = math.hypot(entry.pmra, entry.pmdec)
+    return {
+        "id": "WISE J085510.83-071442.5",
+        "catalog": "AllWISE",
+        "ra_deg": round(float(ra_ep), 7),
+        "dec_deg": round(float(dec_ep), 7),
+        "mag": 13.97,
+        "band": "W2 (4.6 µm)",
+        "pm_ra": round(float(entry.pmra), 2),
+        "pm_dec": round(float(entry.pmdec), 2),
+        "pm_total": round(float(pm_total), 1),
+        "parallax_mas": None,
+        "pm_missing": False,
+        "type": "Y-dwarf (Kirkpatrick+ 2021 / AllWISE; optical dropout)",
+        "is_primary": True,
+        "sep_arcsec": round(float(sep), 2),
+    }
+
+
+def _resolve_gaia_cache_root(cache_root: str | Path | None) -> Path | None:
+    if cache_root is None:
+        return None
+    candidate = Path(cache_root)
+    gaia_sub = candidate if candidate.name == "gaia" else candidate / "gaia"
+    if gaia_sub.is_dir() and any(gaia_sub.glob("gaia_ra*_dec*_r*.json")):
+        return candidate
+    return None
+
+
+def _primary_target_id(
+    rows: list[dict[str, Any]],
+    profile: dict[str, Any] | None,
+    epoch: float,
+) -> int | None:
+    """Identify the single real Gaia DR3 source corresponding to the benchmark target."""
+    if profile is None:
+        return None
+    name = str(profile.get("name") or "")
+    entry = root_coords.lookup_offline_target(name)
+    if entry is None or entry.ra is None or entry.dec is None:
+        return None
+    if entry.pmra is not None and entry.pmdec is not None and entry.ref_epoch is not None:
+        ref_ra, ref_dec = root_coords.position_at_epoch(
+            ra=entry.ra,
+            dec=entry.dec,
+            pmra=entry.pmra,
+            pmdec=entry.pmdec,
+            ref_epoch=entry.ref_epoch,
+            target_epoch=epoch,
+        )
+    else:
+        ref_ra, ref_dec = float(entry.ra), float(entry.dec)
+
+    prof_pm_mas = float(profile.get("pm_total") or 0.0) * 1000.0
+    candidates: list[tuple[float, float, int]] = []
+    for row in rows:
+        sep = _angular_sep_arcsec(ref_ra, ref_dec, row["ra"], row["dec"])
+        if sep > 3.5:
+            continue
+        pm_ra, pm_dec = row.get("pmra"), row.get("pmdec")
+        if prof_pm_mas >= 100.0:
+            if pm_ra is None or pm_dec is None or math.hypot(pm_ra, pm_dec) < 0.5 * prof_pm_mas:
+                continue
+        gmag = row.get("g_mag")
+        candidates.append((float("inf") if gmag is None else float(gmag), sep, int(row["source_id"])))
+    if not candidates:
+        return None
+    candidates.sort()
+    return candidates[0][2]
+
+
 def get_catalog_sources(
     ra: float,
     dec: float,
     fov_arcsec: float,
     target_name: str | None = None,
-) -> list[dict[str, Any]]:
-    """Return catalog cross-matched sources (Gaia DR3 & AllWISE) within FOV."""
-    radius_arcsec = (fov_arcsec / 2.0) * 1.25  # include slight padding for edge sources
+    *,
+    epoch: float = root_coords.DEFAULT_SURVEY_EPOCH,
+    cache_root: str | Path | None = None,
+    mode: str = "cache",
+    timeout: float = gaia.DEFAULT_TIMEOUT_SEC,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Return real Gaia DR3 (plus AllWISE for WISE 0855) sources propagated to ``epoch``.
 
-    # 1. Check offline benchmark catalog
-    if target_name:
-        key = _norm(target_name)
-        for k, cat in BENCHMARK_CATALOGS.items():
-            if key == k or key.startswith(k) or k.startswith(key):
-                matched = []
-                for s in cat:
-                    dist = _angular_sep_arcsec(ra, dec, s["ra_deg"], s["dec_deg"])
-                    if dist <= radius_arcsec:
-                        matched.append({**s, "sep_arcsec": round(dist, 2)})
-                if matched:
-                    return matched
+    Never fabricates sources in synthetic/mock mode. Raises ``gaia.GaiaError`` subclasses
+    (``GaiaNotCachedError`` / ``GaiaUnreachableError``) when real Gaia data cannot be loaded.
+    """
+    norm_mode = (mode or "cache").strip().lower()
+    if norm_mode in ("mock", "synthetic"):
+        return [], {
+            "epoch": round(float(epoch), 4),
+            "source": "synthetic",
+            "truncated": False,
+            "warnings": ["Synthetic / simulation mode — Gaia DR3 / AllWISE rows are never fabricated."],
+        }
 
-    # 2. Check by coordinates in benchmark catalogs
-    for cat in BENCHMARK_CATALOGS.values():
-        pri = [s for s in cat if s.get("is_primary")]
-        if pri:
-            dist = _angular_sep_arcsec(ra, dec, pri[0]["ra_deg"], pri[0]["dec_deg"])
-            if dist <= radius_arcsec:
-                return [
-                    {
-                        **s,
-                        "sep_arcsec": round(
-                            _angular_sep_arcsec(ra, dec, s["ra_deg"], s["dec_deg"]),
-                            2,
-                        ),
-                    }
-                    for s in cat
-                ]
+    gaia_mode = "live" if norm_mode == "live" else ("auto" if norm_mode == "auto" else "cache")
+    radius_arcsec = (float(fov_arcsec) / 2.0) * math.sqrt(2.0)
+    resolved_cache = _resolve_gaia_cache_root(cache_root)
+    catalog = gaia.build_catalog(
+        ra,
+        dec,
+        radius_arcsec,
+        epoch=float(epoch),
+        cache_root=resolved_cache,
+        mode=gaia_mode,
+        timeout=timeout,
+        max_rows=_MAX_RETURNED_SOURCES,
+    )
 
-    # No stored reference is available. Do not invent catalogue entries.
-    return []
+    profile = get_target_profile(target_name, ra, dec)
+    is_wise_field = profile is not None and _norm(profile.get("name", "")).startswith("wise0855")
+    gaia_rows = catalog.get("sources", [])
+    primary_gaia_id = None if is_wise_field else _primary_target_id(gaia_rows, profile, float(epoch))
+    primary_row = (
+        next((row for row in gaia_rows if int(row["source_id"]) == primary_gaia_id), None)
+        if primary_gaia_id is not None
+        else None
+    )
+
+    sources: list[dict[str, Any]] = []
+    has_allwise = False
+    if is_wise_field or _angular_sep_arcsec(ra, dec, 133.7599, -7.24221) <= radius_arcsec:
+        wise_ref = _wise0855_reference(ra, dec, radius_arcsec, float(epoch))
+        if wise_ref is not None:
+            sources.append(wise_ref)
+            has_allwise = True
+
+    for row in gaia_rows:
+        pm_ra = row.get("pmra")
+        pm_dec = row.get("pmdec")
+        pm_missing = bool(row.get("pm_missing", pm_ra is None or pm_dec is None))
+        has_pm = _is_finite_number(pm_ra) and _is_finite_number(pm_dec)
+        pm_total = (
+            round(float(math.hypot(float(pm_ra), float(pm_dec))), 1)
+            if has_pm
+            else None
+        )
+        sep = _angular_sep_arcsec(ra, dec, row["ra"], row["dec"])
+        is_primary = primary_gaia_id is not None and int(row["source_id"]) == primary_gaia_id
+        desc = _classify_gaia_source(
+            row,
+            is_primary=is_primary,
+            profile=profile,
+            primary_row=primary_row,
+        )
+
+        sources.append(
+            {
+                "id": f"Gaia DR3 {row['source_id']}",
+                "catalog": "Gaia DR3",
+                "ra_deg": row["ra"],
+                "dec_deg": row["dec"],
+                "mag": row.get("g_mag"),
+                "band": "G",
+                "pm_ra": round(float(pm_ra), 2) if _is_finite_number(pm_ra) else None,
+                "pm_dec": round(float(pm_dec), 2) if _is_finite_number(pm_dec) else None,
+                "pm_total": pm_total,
+                "parallax_mas": row.get("parallax"),
+                "pm_missing": pm_missing,
+                "type": desc,
+                "is_primary": is_primary,
+                "sep_arcsec": round(float(sep), 2),
+            }
+        )
+
+    sources.sort(
+        key=lambda s: (
+            0 if s["is_primary"] else 1,
+            float("inf") if s["mag"] is None else float(s["mag"]),
+            float(s["sep_arcsec"]),
+        )
+    )
+    meta = {
+        "epoch": catalog.get("epoch", round(float(epoch), 4)),
+        "source": "gaia_dr3+allwise" if has_allwise else "gaia_dr3",
+        "has_allwise": has_allwise,
+        "warnings": list(catalog.get("warnings", [])),
+    }
+    return sources, meta

@@ -12,7 +12,7 @@ const considerations = [
   ['Archive updates', 'IRSA TAP search, cutout retrieval, and local caching. Live archive access is provided by the existing Python backend.'],
   ['Wavelengths & detectors', 'Six detector choices with their wavelength ranges; a spectrum of the samples actually available in the selection.'],
   ['Coaddition & differences', 'Inverse-variance stacking and epoch differences through /api/image.png; significant-pixel summaries through /api/detections.'],
-  ['Field of view', 'Selectable 30–600 arcseconds, with cached cutout buckets and backend sub-cropping.'],
+  ['Field of view', 'Selectable 30–480 arcseconds, with cached cutout buckets and backend sub-cropping.'],
   ['Multi-mission references', 'Gaia / AllWISE reference overlays and source details from the stored benchmark table. This backend does not perform a live catalogue query.'],
   ['Shareable views', 'URL state for coordinates, target, filters, mode, periods, playback, and overlay options; direct links jump to the explorer.'],
   ['Pixel quality', 'Hover or click Blink observations for native brightness, uncertainty, coordinates, background, wavelength, and decoded quality flags.'],

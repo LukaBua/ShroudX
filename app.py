@@ -74,23 +74,43 @@ def render_blink_gif(product: Products, speed: int) -> bytes:
     if not images:
         raise APIError(422, "insufficient_data", "No frames available for GIF export.")
     width, height = images[0].size
+    meta = product.metadata
+    target_meta = meta.get("target") or {}
+    target_name = str(target_meta.get("name") or "").strip()
+    ra_val, dec_val = target_meta.get("ra"), target_meta.get("dec")
+    if target_name and ra_val is not None and dec_val is not None:
+        target_label = f"{target_name} ({float(ra_val):.3f}, {float(dec_val):+.3f})"
+    elif target_name:
+        target_label = target_name
+    elif ra_val is not None and dec_val is not None:
+        target_label = f"RA {float(ra_val):.3f} Dec {float(dec_val):+.3f}"
+    else:
+        target_label = "Selected SPHEREx Field"
+    det = meta.get("detector")
+    det_label = f" | D{det}" if det is not None else ""
+    synth = "SYNTHETIC | " if meta.get("synthetic") else ""
+    header_line = f"{synth}BLINK | {target_label}{det_label}"
+    measure = ImageDraw.Draw(Image.new("L", (1, 1), 0))
     palette = [channel for value in range(256) for channel in (value, value, value)]
     while True:
         animation = []
         for i, (image, frame) in enumerate(zip(images, product.metadata["frames"], strict=True)):
-            canvas = Image.new("L", (max(360, width), height + 30), 0)
+            frame_line = (
+                f"{i + 1}/{len(images)} | {frame['date']} | "
+                f"{frame['wavelength_um']:.4f} um | ShroudX SPHEREx"
+            )
+            min_width = max(
+                360,
+                math.ceil(max(measure.textlength(header_line), measure.textlength(frame_line))) + 8,
+            )
+            canvas = Image.new("L", (max(min_width, width), height + 30), 0)
             canvas.paste(
                 image.resize((width, height), Image.Resampling.NEAREST),
                 ((canvas.width - width) // 2, 0),
             )
             draw = ImageDraw.Draw(canvas)
-            draw.text(
-                (4, height + 2),
-                f"{i + 1}/{len(images)} | {frame['date']} | {frame['wavelength_um']:.4f} um",
-                fill=255,
-            )
-            label = "SYNTHETIC DATA | " if product.metadata["synthetic"] else ""
-            draw.text((4, height + 16), label + "ShroudX / SPHEREx", fill=255)
+            draw.text((4, height + 2), header_line, fill=255)
+            draw.text((4, height + 16), frame_line, fill=255)
             indexed = canvas.convert("P")
             indexed.putpalette(palette)
             animation.append(indexed)
@@ -288,11 +308,25 @@ def query_value(request: Request, key: str) -> str | None:
     return value
 
 
+_TARGET_PRESET_ALIASES: dict[str, str] = {
+    "wise0855": "WISE 0855-0714",
+    "barnard": "Barnard's Star",
+    "epsilonindib": "Epsilon Indi B",
+    "rwaurigae": "RW Aurigae",
+    "rdraconis": "R Draconis",
+}
+
+
+def _normalize_target_name(target: str) -> str:
+    return _TARGET_PRESET_ALIASES.get(target.strip().lower(), target)
+
+
 def parse_position(request: Request) -> Position:
     target, ra, dec = (query_value(request, name) for name in ("target", "ra", "dec"))
     if target is not None:
         if ra is not None or dec is not None:
             raise bad_input("Use a target name or both RA and Dec, not both.", "target")
+        target = _normalize_target_name(target)
     elif ra is None or dec is None:
         raise bad_input("Provide a target name or both RA and Dec.", "target")
     return Position(target, ra, dec)

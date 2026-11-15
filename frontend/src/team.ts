@@ -1,13 +1,62 @@
-import member01 from './assets/team/member-01.jpeg';
-import member02 from './assets/team/member-02.jpeg';
-import member03 from './assets/team/member-03.jpeg';
-import member04 from './assets/team/member-04.jpeg';
+import lukaBuachidze from './assets/team/luka-buachidze.png';
+import yusufJarrar from './assets/team/yusuf-jarrar.jpeg';
+import shayanAmir from './assets/team/member-03.jpeg';
+import eminAhmadov from './assets/team/emin-ahmadov.jpg';
+import aghamusaAzizov from './assets/team/aghamusa-azizov.jpg';
 
-// Photos follow the supplied attachment order. Role assignments are
-// sample placeholders; the bios are proposed copy, not verified credentials.
-export const team: { name: string; role: string; description: string; photo: string | null; initials: string; photoPosition?: string }[] = [
-  { name: 'Luka', role: 'Data & backend', description: 'Develops the infrastructure connecting astronomical archives to the explorer. Focuses on reliable data access, efficient processing, and maintainable APIs that turn complex observations into an accessible research experience.', photo: member01, initials: 'L', photoPosition: '50% 35%' },
-  { name: 'Umair', role: 'Science & statistics', description: 'Shapes the analytical methods behind image comparison and motion measurement. Focuses on uncertainty, reproducible workflows, and careful validation to help distinguish meaningful changes from noise and observational artifacts.', photo: member02, initials: 'U', photoPosition: '50% 32%' },
-  { name: 'Shayan', role: 'Design & frontend', description: 'Transforms scientific workflows into intuitive, engaging interfaces. Brings together interaction design, visual storytelling, and frontend engineering to make astronomical data approachable without losing the detail that matters.', photo: member03, initials: 'S', photoPosition: '50% 35%' },
-  { name: 'Agamusa', role: 'Mission & research', description: 'Connects the mission context, research priorities, and project narrative. Focuses on translating scientific questions into practical goals, coordinating validation, and communicating the team’s methods and findings with clarity.', photo: member04, initials: 'A', photoPosition: '50% 35%' },
+export type TeamMember = {
+  name: string;
+  role: string;
+  description: string;
+  photo: string | null;
+  initials: string;
+  photoPosition?: string;
+};
+
+export const team: TeamMember[] = [
+  {
+    name: 'Luka Buachidze',
+    role: 'Team Lead · AEE Department',
+    description:
+      'Team lead from the AEE Department, guiding overall project direction, coordination, and end-to-end technical delivery.',
+    photo: lukaBuachidze,
+    initials: 'LB',
+    photoPosition: '50% 50%',
+  },
+  {
+    name: 'Yusuf Jarrar',
+    role: 'AEE Department',
+    description:
+      'Team member from the AEE Department, supporting technical research, analysis, and cross-team validation.',
+    photo: yusufJarrar,
+    initials: 'YJ',
+    photoPosition: '50% 25%',
+  },
+  {
+    name: 'Shayan Amir',
+    role: 'CENG Department · Frontend',
+    description:
+      'Represents the CENG Department on frontend engineering, building the explorer interface and visual observation workflows.',
+    photo: shayanAmir,
+    initials: 'SA',
+    photoPosition: '50% 35%',
+  },
+  {
+    name: 'Emin Ahmadov',
+    role: 'Coordinates & Flicker Fix',
+    description:
+      'Worked on target coordinate gathering, astrometric reference alignment, and resolving frame-to-frame brightness flickering.',
+    photo: eminAhmadov,
+    initials: 'EA',
+    photoPosition: '50% 50%',
+  },
+  {
+    name: 'Aghamusa Azizov',
+    role: 'Image Processing & SOFI Files',
+    description:
+      'Worked on image processing, frame cleaning, and handling SOFI files for observational analysis.',
+    photo: aghamusaAzizov,
+    initials: 'AA',
+    photoPosition: '50% 25%',
+  },
 ];

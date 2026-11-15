@@ -124,14 +124,14 @@ def make_mock_frames(ra: float, dec: float, fov: float, n_frames: int = 16) -> l
 # REAL DATA
 # ----------------------------------------------------------------------
 def query_images(ra: float, dec: float) -> list[dict]:
-    """One TAP query: every SPHEREx spectral image whose footprint covers
+    """Query IRSA SIA2 for every SPHEREx spectral image whose footprint covers
     (ra, dec). Returns rows with uri, mjd (observation time), bandpass."""
-    from astroquery.ipac.irsa import Irsa  # imported here so tests need no network
+    import data as root_data
 
     t0 = time.time()
-    res = Irsa.query_tap(TAP_QUERY.format(ra=ra, dec=dec))
-    print(f"TAP query finished in {time.time() - t0:.1f} s, {len(res)} images found.")
-    return [{"uri": str(r["uri"]), "mjd": float(r["mjd"]), "bandpass": str(r["bandpass"])} for r in res]
+    records = root_data.query_sia_images(ra, dec)
+    print(f"SIA query finished in {time.time() - t0:.1f} s, {len(records)} images found.")
+    return [{"uri": str(r.uri), "mjd": float(r.mjd), "bandpass": str(r.bandpass)} for r in records]
 
 
 def parse_rows(rows: list[dict]) -> list[dict]:

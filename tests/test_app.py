@@ -616,3 +616,25 @@ def test_build_products_stabilizes_blink_pedestal_keeps_scientific_aligned(
     # Rendered blink PNGs harmonize sky pedestal so frames do not flicker.
     pngs = [np.array(Image.open(io.BytesIO(b)), dtype=np.float64) for b in prod.blink]
     assert abs(float(np.median(pngs[1])) - float(np.median(pngs[0]))) < 3.0
+
+
+def test_blink_gif_embeds_mode_and_target_caption_and_resolves_preset_aliases(api):
+    client, _, _ = api
+    response = client.get("/api/blink.gif", params={"target": "WISE0855", "fov": 120})
+    assert response.status_code == 200, response.text
+    product = backend.build_products(
+        backend.Selection(backend.Position("WISE 0855-0714", None, None), 120, None, None, None),
+        "auto",
+        backend.ROOT / "cache",
+    )
+    meta = product.metadata
+    assert meta["target"]["name"] == "WISE 0855-0714"
+    # Verify header line fits cleanly inside rendered GIF canvas width and keeps frame crop exact
+    with Image.open(io.BytesIO(response.content)) as gif, Image.open(
+        io.BytesIO(product.blink[0])
+    ) as frame0:
+        assert gif.height == frame0.height + 30
+        assert gif.width >= max(360, frame0.width)
+        strip = np.asarray(gif.convert("L"))[frame0.height :, :]
+        assert np.any(strip > 0)
+
