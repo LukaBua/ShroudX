@@ -2,7 +2,7 @@ import { preloadImages } from './blinkImages';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { ArrowUpRight, Search, Play, Pause, SkipBack, SkipForward, Maximize2, Minimize2, Download, Film, Link2, SlidersHorizontal, Crosshair, LoaderCircle, AlertCircle, X, Info, ChevronDown, RotateCcw } from 'lucide-react';
+import { ArrowUpRight, Search, Play, Pause, SkipBack, SkipForward, Maximize2, Minimize2, Download, Film, Link2, SlidersHorizontal, Crosshair, LoaderCircle, AlertCircle, X, ChevronDown, RotateCcw } from 'lucide-react';
 
 import { dateFromMJD, getJSON, DETECTORS, type Meta, type Motion, type Spectrum, type Pixel, type Catalog, type Detections } from './api';
 
@@ -32,9 +32,9 @@ import { triggerAnnotatedPngDownload, type ExportMode } from './downloadImage';
 
 type Settings = { target: string; ra: string; dec: string; fov: string; detector: string; wmin: string; wmax: string; mode: string; epoch_a: string; epoch_b: string; clean: boolean; smooth: boolean; show_mask: boolean; speed: string; show_compass: boolean; show_vector: boolean; show_detections: boolean; show_catalog: boolean };
 
-const defaults: Settings = { target: 'WISE0855', ra: '', dec: '', fov: '120', detector: '', wmin: '', wmax: '', mode: 'blink', epoch_a: '', epoch_b: '', clean: true, smooth: true, show_mask: false, speed: '400', show_compass: true, show_vector: true, show_detections: true, show_catalog: true };
+const defaults: Settings = { target: 'Barnard', ra: '', dec: '', fov: '240', detector: '', wmin: '', wmax: '', mode: 'blink', epoch_a: '', epoch_b: '', clean: true, smooth: true, show_mask: false, speed: '400', show_compass: true, show_vector: true, show_detections: true, show_catalog: true };
 
-const presets = [['WISE0855', 'WISE 0855'], ['Barnard', 'Barnard’s Star'], ['EpsilonIndiB', 'Epsilon Indi B'], ['RWAurigae', 'RW Aurigae'], ['RDraconis', 'R Draconis']];
+const presets = [['Barnard', 'Barnard’s Star'], ['WISE0855', 'WISE 0855'], ['EpsilonIndiB', 'Epsilon Indi B'], ['RWAurigae', 'RW Aurigae'], ['RDraconis', 'R Draconis']];
 
 const presetDisplayNames: Record<string, string> = {
   WISE0855: 'WISE 0855-0714',
@@ -476,9 +476,9 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
 
         <form onSubmit={submit}>
 
-          <div className="segmented input-tabs"><button type="button" className={inputMode === 'name' ? 'active' : ''} onClick={() => { setInputMode('name'); change('target', 'WISE0855'); }}>Object name</button><button type="button" className={inputMode === 'coordinates' ? 'active' : ''} onClick={() => { setInputMode('coordinates'); change('target', ''); }}>Coordinates</button></div>
+          <div className="segmented input-tabs"><button type="button" className={inputMode === 'name' ? 'active' : ''} onClick={() => { setInputMode('name'); change('target', 'Barnard'); }}>Object name</button><button type="button" className={inputMode === 'coordinates' ? 'active' : ''} onClick={() => { setInputMode('coordinates'); change('target', ''); }}>Coordinates</button></div>
 
-          {inputMode === 'name' ? <label className="field-label">TARGET NAME<div className="search-field"><Search size={16} /><input aria-label="Target name" value={form.target} onChange={e => change('target', e.target.value)} placeholder="e.g. Barnard’s Star" required /></div></label> : <div className="coordinate-fields"><label className="field-label">RIGHT ASCENSION<input aria-label="Right ascension" value={form.ra} onChange={e => change('ra', e.target.value)} placeholder="133.75990" required /></label><label className="field-label">DECLINATION<input aria-label="Declination" value={form.dec} onChange={e => change('dec', e.target.value)} placeholder="−7.24221" required /></label><p className="field-help">Decimal degrees or sexagesimal coordinates.</p></div>}
+          {inputMode === 'name' ? <label className="field-label">TARGET NAME<div className="search-field"><Search size={16} /><input aria-label="Target name" value={form.target} onChange={e => change('target', e.target.value)} placeholder="e.g. Barnard’s Star" required /></div></label> : <div className="coordinate-fields"><label className="field-label">RIGHT ASCENSION<input aria-label="Right ascension" value={form.ra} onChange={e => change('ra', e.target.value)} placeholder="269.44633" required /></label><label className="field-label">DECLINATION<input aria-label="Declination" value={form.dec} onChange={e => change('dec', e.target.value)} placeholder="4.76762" required /></label><p className="field-help">Decimal degrees or sexagesimal coordinates.</p></div>}
 
           <label className="field-label fov-label">FIELD OF VIEW <input className="fov-number" aria-label="Exact field of view in arcseconds" type="number" min="30" max="480" value={form.fov} onChange={e => change('fov', e.target.value)} /><input type="range" aria-label="Field of view" min="30" max="480" step="10" value={form.fov} onChange={e => change('fov', e.target.value)} /><span className="range-labels"><span>30″ · close</span><span>480″ · wide</span></span></label>
 
@@ -491,8 +491,6 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
         </form>
 
         <div className="preset-section"><p className="eyebrow">A FEW PLACES TO BEGIN</p><div className="presets">{presets.map(([value, label]) => <button disabled={busy} className={form.target === value ? 'selected' : ''} onClick={() => selectPreset(value)} key={value}>{label}<ArrowUpRight size={12} /></button>)}</div></div>
-
-        <p className="panel-bottom-note"><Info size={14} /> Dates and available wavelengths depend on the archive. Mock observations are explicitly labelled.</p>
 
       </aside>
 

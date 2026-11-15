@@ -162,7 +162,11 @@ def centroid(image, var=None, box=None):
 
 
 def centroid_with_err(
-    image: np.ndarray, var: np.ndarray | None = None, box=None
+    image: np.ndarray,
+    var: np.ndarray | None = None,
+    box=None,
+    *,
+    saturated_core: bool = False,
 ) -> tuple[float, float, float, float]:
     """Intensity-weighted centroid (x, y) and standard errors (sx, sy) in pixels.
     Uses propagated variance if provided; otherwise estimates error from signal-to-noise.
@@ -178,7 +182,18 @@ def centroid_with_err(
     else:
         y0, y1, x0, x1 = 0, img.shape[0], 0, img.shape[1]
 
-    sub, wy0, wy1, wx0, wx1 = _local_psf_window(img, y0, y1, x0, x1, radius=2)
+    if saturated_core:
+        region = img[y0:y1, x0:x1]
+        bg_level = float(np.median(img)) if np.isfinite(img).any() else 0.0
+        sub = np.clip(region - max(0.0, bg_level), 0.0, None)
+        pos = sub[sub > 0]
+        if pos.size > 0:
+            cap = float(np.percentile(pos, 85))
+            sub = np.minimum(sub, cap)
+        wy0, wy1, wx0, wx1 = y0, y1, x0, x1
+    else:
+        sub, wy0, wy1, wx0, wx1 = _local_psf_window(img, y0, y1, x0, x1, radius=2)
+
     total = float(sub.sum())
     if total <= 0:
         return np.nan, np.nan, np.nan, np.nan
@@ -186,28 +201,30 @@ def centroid_with_err(
     cx0 = float((sub * xx).sum() / total)
     cy0 = float((sub * yy).sum() / total)
 
-    # 3-point Gaussian peak refinement along 1D marginals to eliminate integer-box pixel-phase bias
+    # 3-point Gaussian peak refinement along 1D marginals to eliminate integer-box pixel-phase bias.
+    # Skipped on clipped/inpainted saturated cores where the central peak is not Gaussian.
     cx, cy = cx0, cy0
-    iy0 = int(np.clip(round(cy0), wy0 + 1, wy1 - 2))
-    ix0 = int(np.clip(round(cx0), wx0 + 1, wx1 - 2))
-    rel_x = ix0 - wx0
-    rel_y = iy0 - wy0
-    proj_x = np.sum(sub, axis=0)
-    proj_y = np.sum(sub, axis=1)
-    if 0 < rel_x < len(proj_x) - 1 and 0 < rel_y < len(proj_y) - 1:
-        vx1, vx2, vx3 = float(proj_x[rel_x - 1]), float(proj_x[rel_x]), float(proj_x[rel_x + 1])
-        vy1, vy2, vy3 = float(proj_y[rel_y - 1]), float(proj_y[rel_y]), float(proj_y[rel_y + 1])
-        if vx1 > 0 and vx2 > 0 and vx3 > 0 and vy1 > 0 and vy2 > 0 and vy3 > 0:
-            lx1, lx2, lx3 = np.log(vx1), np.log(vx2), np.log(vx3)
-            denom_x = lx1 - 2.0 * lx2 + lx3
-            if denom_x < -1e-6:
-                dx = 0.5 * (lx1 - lx3) / denom_x
-                cx = float(ix0 + np.clip(dx, -1.0, 1.0))
-            ly1, ly2, ly3 = np.log(vy1), np.log(vy2), np.log(vy3)
-            denom_y = ly1 - 2.0 * ly2 + ly3
-            if denom_y < -1e-6:
-                dy = 0.5 * (ly1 - ly3) / denom_y
-                cy = float(iy0 + np.clip(dy, -1.0, 1.0))
+    if not saturated_core:
+        iy0 = int(np.clip(round(cy0), wy0 + 1, wy1 - 2))
+        ix0 = int(np.clip(round(cx0), wx0 + 1, wx1 - 2))
+        rel_x = ix0 - wx0
+        rel_y = iy0 - wy0
+        proj_x = np.sum(sub, axis=0)
+        proj_y = np.sum(sub, axis=1)
+        if 0 < rel_x < len(proj_x) - 1 and 0 < rel_y < len(proj_y) - 1:
+            vx1, vx2, vx3 = float(proj_x[rel_x - 1]), float(proj_x[rel_x]), float(proj_x[rel_x + 1])
+            vy1, vy2, vy3 = float(proj_y[rel_y - 1]), float(proj_y[rel_y]), float(proj_y[rel_y + 1])
+            if vx1 > 0 and vx2 > 0 and vx3 > 0 and vy1 > 0 and vy2 > 0 and vy3 > 0:
+                lx1, lx2, lx3 = np.log(vx1), np.log(vx2), np.log(vx3)
+                denom_x = lx1 - 2.0 * lx2 + lx3
+                if denom_x < -1e-6:
+                    dx = 0.5 * (lx1 - lx3) / denom_x
+                    cx = float(ix0 + np.clip(dx, -1.0, 1.0))
+                ly1, ly2, ly3 = np.log(vy1), np.log(vy2), np.log(vy3)
+                denom_y = ly1 - 2.0 * ly2 + ly3
+                if denom_y < -1e-6:
+                    dy = 0.5 * (ly1 - ly3) / denom_y
+                    cy = float(iy0 + np.clip(dy, -1.0, 1.0))
 
     if var is not None:
         v_arr = np.asarray(var, float)[wy0:wy1, wx0:wx1]
@@ -284,9 +301,17 @@ def measure_motion(
         # Restrict search to central region (+/- 3 px around center, i.e. ~43"x43" box)
         # when no explicit box is provided on a real WCS cutout so background stars never hijack the fit
         eff_box = box
+        sat_core = False
         if eff_box is None and has_wcs and ny >= 14 and nx >= 14:
             cy_mid, cx_mid = ny // 2, nx // 2
-            half_w = 3
+            unrel = getattr(f, "unreliable", None)
+            if unrel is not None and np.shape(unrel) == f.image.shape:
+                core_u = unrel[
+                    max(0, cy_mid - 3) : min(ny, cy_mid + 4),
+                    max(0, cx_mid - 3) : min(nx, cx_mid + 4),
+                ]
+                sat_core = int(np.count_nonzero(core_u)) >= 20
+            half_w = min(5, ny // 2 - 2, nx // 2 - 2) if sat_core else 3
             eff_box = (
                 max(2, cy_mid - half_w),
                 min(ny - 2, cy_mid + half_w + 1),
@@ -294,7 +319,9 @@ def measure_motion(
                 min(nx - 2, cx_mid + half_w + 1),
             )
 
-        cx, cy, sx, sy = centroid_with_err(f.image, f.variance, box=eff_box)
+        cx, cy, sx, sy = centroid_with_err(
+            f.image, f.variance, box=eff_box, saturated_core=sat_core
+        )
         if not np.isfinite(cx) or not np.isfinite(cy):
             continue
 
@@ -1000,6 +1027,40 @@ def unbiased_sky_bg_and_sigma(arr: np.ndarray, valid_mask: np.ndarray) -> tuple[
     return med, max(mad, 1e-5)
 
 
+def _stationary_reprojection_variance(
+    earlier: np.ndarray,
+    later: np.ndarray,
+    valid: np.ndarray,
+) -> np.ndarray:
+    """Estimate PSF-undersampling / bilinear-reprojection variance on stationary bright stars.
+
+    Only activates where local 3x3 flux is conserved between epochs; moving objects and
+    variable stars whose local flux shifts or changes amplitude retain near-zero penalty.
+    """
+    from scipy.ndimage import maximum_filter, uniform_filter
+
+    if earlier.ndim != 2 or earlier.shape[0] < 3 or earlier.shape[1] < 3 or not np.any(valid):
+        return np.zeros(earlier.shape, dtype=float)
+
+    e_pos = np.where(valid, np.maximum(np.nan_to_num(earlier, nan=0.0), 0.0), 0.0)
+    l_pos = np.where(valid, np.maximum(np.nan_to_num(later, nan=0.0), 0.0), 0.0)
+    denom = np.maximum(uniform_filter(valid.astype(float), size=3, mode="nearest"), 1e-6)
+    e_sm = uniform_filter(e_pos, size=3, mode="nearest") / denom
+    l_sm = uniform_filter(l_pos, size=3, mode="nearest") / denom
+
+    rel_net = np.abs(l_sm - e_sm) / np.maximum(np.maximum(e_sm, l_sm), 1e-6)
+    stat_w = np.clip(1.0 - rel_net / 0.25, 0.0, 1.0)
+
+    overlap = np.minimum(e_pos, l_pos)
+    sky_floor = float(np.median(overlap[valid]))
+    overlap_net = np.clip(overlap - sky_floor, 0.0, None)
+    gy, gx = np.gradient(overlap_net)
+    gmax = maximum_filter(np.hypot(gy, gx), size=3)
+
+    sigma_rep = stat_w * (0.30 * gmax + 0.12 * overlap_net)
+    return np.where(valid, sigma_rep**2, 0.0)
+
+
 def epoch_diff_stats(
     group_earlier: list[Frame],
     group_later: list[Frame],
@@ -1079,8 +1140,9 @@ def epoch_diff_stats(
     else:
         ratio = 1.0
     scale = max(1.0, ratio) if reliable else 1.0
+    v_rep = _stationary_reprojection_variance(mean_b, mean_a, valid)
 
-    var_cal = np.where(valid, var_d * scale**2, np.nan)
+    var_cal = np.where(valid, var_d * scale**2 + v_rep, np.nan)
     z = np.zeros(d.shape)
     z[valid] = d[valid] / np.sqrt(var_cal[valid])
 

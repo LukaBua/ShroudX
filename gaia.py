@@ -61,9 +61,39 @@ GAIA_COLUMNS: tuple[str, ...] = (
 )
 PROPAGATED_COLUMNS: tuple[str, ...] = (*GAIA_COLUMNS, "pm_missing")
 MAX_CATALOG_SOURCES: int = 500
-DEFAULT_TIMEOUT_SEC: float = 15.0
+DEFAULT_TIMEOUT_SEC: float = 90.0
 DEFAULT_PM_REL_TOL: float = 0.10
 MIN_PM_SIGMA_MAS_YR: float = 5.0
+
+
+def default_timeout_sec(min_timeout: float | None = None) -> float:
+    """Return the configured Gaia TAP timeout in seconds."""
+    import math
+    import os
+
+    raw = os.environ.get("SPHX_GAIA_TIMEOUT")
+    timeout = DEFAULT_TIMEOUT_SEC
+    if raw:
+        try:
+            parsed = float(raw)
+        except ValueError:
+            parsed = float("nan")
+        if math.isfinite(parsed) and parsed > 0:
+            timeout = parsed
+    if min_timeout is not None and math.isfinite(min_timeout) and min_timeout > timeout:
+        return float(min_timeout)
+    return float(timeout)
+
+
+def _is_sync_tap_timeout_error(exc: Exception) -> bool:
+    """Return True when a sync TAP failure indicates a timeout or gateway overload."""
+    if isinstance(exc, TimeoutError):
+        return True
+    response = getattr(exc, "response", None)
+    if getattr(response, "status_code", None) in {408, 500, 502, 503, 504}:
+        return True
+    msg = str(exc).lower()
+    return any(token in msg for token in ("timed out", "timeout", "504", "502", "503", "408"))
 
 # Optional module-level override for astroquery.gaia.Gaia (imported lazily when None
 # so importing gaia.py never makes network connections at import time).
@@ -541,14 +571,16 @@ def query_gaia(
     def _execute_tap() -> Any:
         client = _get_gaia_client(tap_client)
         if hasattr(client, "launch_job"):
-            job = client.launch_job(adql)
-        elif hasattr(client, "launch_job_async"):
+            try:
+                job = client.launch_job(adql)
+                return job.get_results() if hasattr(job, "get_results") else job
+            except Exception as exc:
+                if not (hasattr(client, "launch_job_async") and _is_sync_tap_timeout_error(exc)):
+                    raise
+        if hasattr(client, "launch_job_async"):
             job = client.launch_job_async(adql)
-        else:
-            raise GaiaUnreachableError("Configured Gaia TAP client has no launch_job method.")
-        if hasattr(job, "get_results"):
-            return job.get_results()
-        return job
+            return job.get_results() if hasattr(job, "get_results") else job
+        raise GaiaUnreachableError("Configured Gaia TAP client has no launch_job method.")
 
     raw_result = _run_with_timeout(_execute_tap, timeout=timeout)
 

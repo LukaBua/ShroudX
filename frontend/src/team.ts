@@ -1,6 +1,6 @@
 import lukaBuachidze from './assets/team/luka-buachidze.png';
 import yusufJarrar from './assets/team/yusuf-jarrar.jpeg';
-import shayanAmir from './assets/team/member-03.jpeg';
+import shayanAmir from './assets/team/shayan-amir.jpg';
 import eminAhmadov from './assets/team/emin-ahmadov.jpg';
 import aghamusaAzizov from './assets/team/aghamusa-azizov.jpg';
 
@@ -39,7 +39,7 @@ export const team: TeamMember[] = [
       'Represents the CENG Department on frontend engineering, building the explorer interface and visual observation workflows.',
     photo: shayanAmir,
     initials: 'SA',
-    photoPosition: '50% 35%',
+    photoPosition: '50% 45%',
   },
   {
     name: 'Emin Ahmadov',
