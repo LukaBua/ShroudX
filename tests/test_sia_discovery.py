@@ -104,3 +104,51 @@ def test_react_receives_clear_archive_errors(tmp_path,monkeypatch):
         result=client.get('/api/meta',params=dict(ra=10,dec=20,fov=120,mode='blink',clean=True))
         assert result.status_code==502
         assert 'IRSA service unavailable' in result.json()['detail']
+
+
+def test_compat_uses_sia2_and_preserves_http_status_and_fuzzy_cache(tmp_path,monkeypatch):
+    from pathlib import Path
+    import app
+    from fastapi.testclient import TestClient
+    import frontend_compat
+    import frontend_compat.data as fc_data
+
+    # 1. frontend_compat.data.query_images uses SIA2 instead of legacy /TAP/sync
+    sia_rec=data.ImageRecord('https://example.org/test.fits',60900.0,'SPHEREx-D2','SIA')
+    monkeypatch.setattr(data,'query_sia_images',lambda ra,dec:[sia_rec])
+    assert fc_data.query_images(346.62,-5.04)==[
+        {'uri':'https://example.org/test.fits','mjd':60900.0,'bandpass':'SPHEREx-D2'}
+    ]
+
+    # 2. Compat practice middleware preserves 502 (archive) & 404 (no coverage) rather than 422
+    monkeypatch.setattr(data,'get_detector_frames',lambda *a,**kw:(_ for _ in ()).throw(
+        data.ArchiveUnreachableError('SIA unreachable during test')))
+    with TestClient(app.create_app(mode='auto',cache_root=tmp_path)) as client:
+        r502=client.get('/api/meta',params=dict(ra=10,dec=20,fov=280,mode='diff',clean=True,smooth=True,show_mask=False))
+        assert r502.status_code==502
+
+    monkeypatch.setattr(data,'get_detector_frames',lambda *a,**kw:(_ for _ in ()).throw(
+        data.NoCoverageError('No SPHEREx coverage here')))
+    with TestClient(app.create_app(mode='auto',cache_root=tmp_path)) as client:
+        r404=client.get('/api/meta',params=dict(ra=10,dec=20,fov=280,mode='diff',clean=True,smooth=True,show_mask=False))
+        assert r404.status_code==404
+
+    # 3. Cached WISE0855 (folder ra133.7598 vs compat coord 133.7599) works offline in auto mode
+    repo_cache=Path(__file__).resolve().parent.parent/'cache'
+    if (repo_cache/'ra133.7598_dec-07.2422_s480').exists():
+        monkeypatch.setattr(data,'get_detector_frames',lambda *a,**kw:pytest.fail('WISE0855 should hit local cache'))
+        with TestClient(frontend_compat.create_practice_app(repo_cache,'auto')) as compat_client:
+            ok=compat_client.get('/api/meta',params=dict(target='WISE0855',fov=240,mode='diff',clean=True,smooth=True,show_mask=False))
+            assert ok.status_code==200,ok.text
+
+    # 4. Mixed processing versions in selected frames do not crash /api/meta?mode=diff with 422
+    synth=data._generate_synthetic_frames(111.85208,5.22579,280.0)
+    mixed=tuple(
+        f.copy_with(version=19 if i==0 else 20,meta={**(f.meta or {}),'synthetic':False,'data_source':'archive'})
+        for i,f in enumerate(synth)
+    )
+    monkeypatch.setattr(data,'get_detector_frames',lambda *a,**kw:mixed)
+    with TestClient(frontend_compat.create_practice_app(tmp_path,'auto')) as compat_client:
+        mix_ok=compat_client.get('/api/meta',params=dict(ra=111.85208,dec=5.22579,fov=280,mode='diff',clean=True,smooth=True,show_mask=False))
+        assert mix_ok.status_code==200,mix_ok.text
+        assert mix_ok.json()['n_frames']>=2

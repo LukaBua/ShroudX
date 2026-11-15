@@ -102,12 +102,23 @@ def create_practice_app(cache_root: Path, mode: str):
         wrapped.cache_clear = getattr(function, "cache_clear", lambda: None)
         return wrapped
 
+    original_loader_get_frames = loader.get_frames
     if mode in ("auto", "live"):
         def get_real_frames(ra, dec, fov, detector=None):
+            bucket = loader.find_cached_bucket(ra, dec, fov)
+            if bucket is not None:
+                folder = loader._cache_dir(ra, dec, bucket)
+                in_other_detector = (
+                    detector is not None
+                    and folder.parent.name.startswith("detector-")
+                    and folder.parent.name != f"detector-{detector}"
+                )
+                if not in_other_detector:
+                    return original_loader_get_frames(ra, dec, fov)
             return current_data.get_detector_frames(
                 ra, dec, fov, detector=detector, mode=mode, cache_root=cache_root
             )
-        get_real_frames.cache_clear = getattr(loader.get_frames, "cache_clear", lambda: None)
+        get_real_frames.cache_clear = getattr(original_loader_get_frames, "cache_clear", lambda: None)
         loader.get_frames = get_real_frames
 
     loader.get_frames = capture_frames(loader.get_frames)
