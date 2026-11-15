@@ -2,7 +2,7 @@ import { preloadImages } from './blinkImages';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 
-import { ArrowUpRight, Search, Play, Pause, SkipBack, SkipForward, Maximize2, Minimize2, Download, Film, Link2, SlidersHorizontal, Crosshair, LoaderCircle, AlertCircle, X, Info, ChevronDown, RotateCcw } from 'lucide-react';
+import { ArrowUpRight, Search, Play, Pause, SkipBack, SkipForward, Maximize2, Minimize2, Download, Film, Link2, SlidersHorizontal, Crosshair, LoaderCircle, AlertCircle, X, ChevronDown, RotateCcw } from 'lucide-react';
 
 import { dateFromMJD, getJSON, DETECTORS, type Meta, type Motion, type Spectrum, type Pixel, type Catalog, type Detections } from './api';
 
@@ -491,8 +491,6 @@ export default function Explorer({ expanded, onExpand }: { expanded: boolean; on
         </form>
 
         <div className="preset-section"><p className="eyebrow">A FEW PLACES TO BEGIN</p><div className="presets">{presets.map(([value, label]) => <button disabled={busy} className={form.target === value ? 'selected' : ''} onClick={() => selectPreset(value)} key={value}>{label}<ArrowUpRight size={12} /></button>)}</div></div>
-
-        <p className="panel-bottom-note"><Info size={14} /> Dates and available wavelengths depend on the archive. Mock observations are explicitly labelled.</p>
 
       </aside>
 
