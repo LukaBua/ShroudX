@@ -564,3 +564,55 @@ def test_build_products_pads_cutout_fetch_fov_to_preserve_rotated_corners(
     assert prod.metadata["image_shape"] == [49, 49]
     # Without rotation padding, all four corners would be masked; with 450" fetch, none are masked
     assert int(np.sum(prod.aligned[0].mask)) == 0
+
+
+def test_build_products_stabilizes_blink_pedestal_keeps_scientific_aligned(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    ny, nx = 48, 48  # 300" padded bucket for 120" output FOV (20x20 crop)
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    star = 120.0 * np.exp(-0.5 * (((xx - 23.5) ** 2 + (yy - 23.5) ** 2) / 1.2**2))
+    inner = (np.abs(xx - 23.5) <= 10.5) & (np.abs(yy - 23.5) <= 10.5)
+
+    def fake_bucket(cache_root, ra, dec, fov):
+        return (tmp_path, 300, ())
+
+    def fake_get_frames(ra, dec, fov, **kwargs):
+        out = []
+        for idx, (mjd, inner_pedestal) in enumerate(((60900.0, 0.0), (61080.0, 8.0))):
+            hdul = _make_cutout_hdul(
+                ny=ny, nx=nx, ra=ra, dec=dec, mjd=mjd, uri=f"ped{idx}.fits"
+            )
+            img = 10.0 + star + np.where(inner, inner_pedestal, 0.0)
+            hdul["IMAGE"].data = img.astype(np.float32)
+            hdul["ZODI"].data = np.zeros((ny, nx), dtype=np.float32)
+            frame = data.frame_from_hdul(
+                hdul,
+                ra=ra,
+                dec=dec,
+                mjd=mjd,
+                uri=f"ped{idx}.fits",
+                bandpass="SPHEREx-D5",
+            )
+            out.append(frame)
+        return tuple(out)
+
+    monkeypatch.setattr(data, "_find_cached_bucket", fake_bucket)
+    monkeypatch.setattr(data, "get_frames", fake_get_frames)
+
+    sel = backend.Selection(
+        backend.Position(None, "133.76", "-7.24"),
+        fov=120,
+        detector=5,
+        wmin=None,
+        wmax=None,
+    )
+    prod = backend.build_products(sel, "cache", tmp_path)
+
+    # Scientific aligned frames keep outer-calibrated flux offsets (>6 MJy/sr difference).
+    sci_meds = [float(np.median(f.image[~f.mask])) for f in prod.aligned]
+    assert sci_meds[1] - sci_meds[0] > 6.0
+
+    # Rendered blink PNGs harmonize sky pedestal so frames do not flicker.
+    pngs = [np.array(Image.open(io.BytesIO(b)), dtype=np.float64) for b in prod.blink]
+    assert abs(float(np.median(pngs[1])) - float(np.median(pngs[0]))) < 3.0

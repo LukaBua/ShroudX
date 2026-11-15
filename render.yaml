@@ -1,0 +1,24 @@
+# Render Blueprint for ShroudX (https://shroudx.us)
+services:
+  - type: web
+    name: shroudx
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    domains:
+      - shroudx.us
+      - www.shroudx.us
+    envVars:
+      - key: SPHX_MODE
+        value: auto
+      - key: SPHX_CACHE_DIR
+        value: /app/cache
+      - key: SPHX_RESULTS_DIR
+        value: /app/results
+      - key: SPHX_REQUEST_TIMEOUT
+        value: "30.0"
+      - key: SPHX_IRSA_CONCURRENCY
+        value: "2"
+      - key: SPHX_CANONICAL_HOST
+        value: shroudx.us

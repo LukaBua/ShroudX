@@ -24,6 +24,7 @@ from processing import (
     render_diff_png,
     render_png,
     split_epochs,
+    stabilize_display_frames,
     stack_frames,
 )
 
@@ -725,3 +726,85 @@ def test_difference_images_epoch_selection_and_render_diff_png() -> None:
     assert int(arr_auto[row_png, 10]) == 255
     assert int(arr_auto[row_png, 4]) == 0
     assert int(arr_auto[0, 0]) == 128
+
+
+def test_clean_frame_heavily_masked_bright_core_avoids_over_subtraction() -> None:
+    """clean_frame does not mistake a sparse inner PSF ring for flat sky."""
+    ny, nx = 20, 20
+    yy, xx = np.mgrid[0:ny, 0:nx]
+    radius = np.hypot(xx - 9.5, yy - 9.5)
+    # Steep inner wing from ~2000 down to ~270 across a sparse annulus (<25% unmasked).
+    wing = 100.0 + 3000.0 * np.exp(-1.5 * np.maximum(radius - 7.5, 0.0))
+    mask = (radius < 7.8) | (radius > 9.4)
+    assert float(np.count_nonzero(~mask)) / float(mask.size) < 0.25
+
+    frame = _make_frame(
+        ny=ny,
+        nx=nx,
+        image=wing.copy(),
+        mask=mask.copy(),
+        zodi=np.zeros((ny, nx), dtype=np.float64),
+    )
+    cleaned = clean_frame(frame)
+
+    bg = float(cleaned.meta["background_level"])
+    assert bg < 400.0
+    assert float(np.min(cleaned.image[~cleaned.mask])) >= -25.0
+
+
+def test_compute_stretch_ignores_all_masked_frames_when_unmasked_exist() -> None:
+    """An all-masked frame must not hijack the stretch of a sequence with good frames."""
+    good = _make_frame(
+        ny=10,
+        nx=10,
+        image=np.tile(np.linspace(0.0, 10.0, 10), (10, 1)),
+    )
+    all_masked = _make_frame(
+        ny=10,
+        nx=10,
+        image=np.full((10, 10), -5000.0),
+        mask=np.ones((10, 10), dtype=bool),
+    )
+
+    stretch = compute_stretch([good, all_masked])
+    assert 0.0 <= stretch["vmin"] <= 1.0
+    assert 9.0 <= stretch["vmax"] <= 10.0
+
+    # A lone all-masked frame still falls back to finite pixels gracefully.
+    fallback = compute_stretch(all_masked)
+    assert fallback["vmin"] == pytest.approx(-5000.0)
+
+
+def test_stabilize_display_frames_harmonizes_pedestal_and_masks() -> None:
+    """stabilize_display_frames aligns residual sky pedestals without mutating inputs."""
+    ny, nx = 16, 16
+    star = _gaussian_source(ny, nx, 8.0, 8.0, flux=80.0, sigma_px=1.0)
+    mask = np.zeros((ny, nx), dtype=bool)
+    mask[2, 2] = True
+
+    f0 = _make_frame(ny=ny, nx=nx, image=star + 0.0, mask=mask.copy())
+    f1 = _make_frame(ny=ny, nx=nx, image=star + 8.0, mask=mask.copy())
+    # Inject bright outlier inside dilated mask pixel as alignment edges can hold.
+    f0.image[2, 2] = 500.0
+    f1.image[2, 2] = 500.0
+    f2_masked = _make_frame(
+        ny=ny,
+        nx=nx,
+        image=np.full((ny, nx), -999.0),
+        mask=np.ones((ny, nx), dtype=bool),
+    )
+
+    f0_orig = f0.image.copy()
+    f1_orig = f1.image.copy()
+    stabilized = stabilize_display_frames((f0, f1, f2_masked))
+
+    # Original inputs are unmodified.
+    assert np.array_equal(f0.image, f0_orig)
+    assert np.array_equal(f1.image, f1_orig)
+
+    # Display copies converge to shared median pedestal (4.0) and fill mask cleanly.
+    assert abs(float(np.median(stabilized[0].image[~mask])) - 4.0) < 0.25
+    assert abs(float(np.median(stabilized[1].image[~mask])) - 4.0) < 0.25
+    assert abs(float(stabilized[0].image[2, 2]) - 4.0) < 1.0
+    assert abs(float(stabilized[1].image[2, 2]) - 4.0) < 1.0
+    assert np.allclose(stabilized[2].image, 4.0)

@@ -550,9 +550,10 @@ def build_products(
         "stack_quality": stack_quality,
         "warnings": list(dict.fromkeys(warnings)),
     }
+    display_frames = processing.stabilize_display_frames(aligned)
     return Products(
         metadata,
-        tuple(processing.render_png(f, stretch) for f in aligned),
+        tuple(processing.render_png(f, stretch) for f in display_frames),
         processing.render_stack_png(stack, stretch),
         tuple(aligned),
     )

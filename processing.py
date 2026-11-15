@@ -196,6 +196,30 @@ def _sigma_clipped_median(
     return med
 
 
+MIN_SKY_UNMASKED_FRACTION: float = 0.25
+
+
+def _estimate_background(
+    img: np.ndarray,
+    valid: np.ndarray,
+    *,
+    has_zodi: bool,
+    sigma_clip: float,
+    max_iters: int,
+) -> float:
+    """Estimate sky background while guarding heavily masked bright-star wings."""
+    vals = img[valid]
+    if vals.size == 0:
+        return 0.0
+    valid_fraction = float(vals.size) / float(valid.size)
+    if valid_fraction < MIN_SKY_UNMASKED_FRACTION:
+        # Heavily masked cores leave mostly inner PSF wings; avoid subtracting their
+        # median as flat sky, which would drive outer pixels deeply negative.
+        floor = float(np.percentile(vals, 5))
+        return max(0.0, floor) if has_zodi else floor
+    return _sigma_clipped_median(vals, sigma_clip=sigma_clip, max_iters=max_iters)
+
+
 def _inpaint_bad_pixels(
     image: np.ndarray,
     bad: np.ndarray,
@@ -280,7 +304,13 @@ def clean_frame(
         img = img - np.asarray(frame.zodi, dtype=np.float64)
 
     valid = (~mask) & np.isfinite(img)
-    bg = _sigma_clipped_median(img[valid], sigma_clip=sigma_clip, max_iters=max_iters)
+    bg = _estimate_background(
+        img,
+        valid,
+        has_zodi=frame.zodi is not None,
+        sigma_clip=sigma_clip,
+        max_iters=max_iters,
+    )
     img = np.where(np.isfinite(img), img - bg, np.nan)
 
     bad = mask | ~np.isfinite(img)
@@ -850,18 +880,26 @@ def compute_stretch(
         else list(frames_or_images)
     )
 
-    chunks: list[np.ndarray] = []
+    primary_chunks: list[np.ndarray] = []
+    fallback_chunks: list[np.ndarray] = []
     for item in items:
         if isinstance(item, Frame):
             arr = np.asarray(item.image, dtype=np.float64)
             unmasked = arr[(~item.mask) & np.isfinite(arr)]
-            vals = unmasked if unmasked.size > 0 else arr[np.isfinite(arr)]
+            if unmasked.size > 0:
+                primary_chunks.append(unmasked)
+            else:
+                # Defer all-masked frames so they cannot hijack an unmasked sequence stretch.
+                finite = arr[np.isfinite(arr)]
+                if finite.size > 0:
+                    fallback_chunks.append(finite)
         else:
             arr = np.asarray(item, dtype=np.float64)
-            vals = arr[np.isfinite(arr)]
-        if vals.size > 0:
-            chunks.append(vals)
+            finite = arr[np.isfinite(arr)]
+            if finite.size > 0:
+                primary_chunks.append(finite)
 
+    chunks = primary_chunks if primary_chunks else fallback_chunks
     if not chunks:
         return StretchParams(mode=mode, vmin=0.0, vmax=1.0)
 
@@ -1162,6 +1200,69 @@ def render_diff_png(
     buf = io.BytesIO()
     Image.fromarray(u8, mode="L").save(buf, format="PNG")
     return buf.getvalue()
+
+
+def stabilize_display_frames(
+    frames: Sequence[Frame],
+    *,
+    min_unmasked: int = 4,
+    sigma_clip: float = 3.0,
+    max_iters: int = 5,
+    inpaint_size: int = 5,
+) -> tuple[Frame, ...]:
+    """Return display-only copies with harmonized sky pedestals and filled masks.
+
+    Scientific flux and masks in ``frames`` remain untouched. Each frame's residual
+    post-alignment sky pedestal is shifted to the shared sequence median pedestal, and
+    masked pixels (including dilated reprojection edges) are re-inpainted for display.
+    """
+    if not frames:
+        return ()
+
+    pedestals: list[float | None] = []
+    for frame in frames:
+        arr = np.asarray(frame.image, dtype=np.float64)
+        good = (~frame.mask) & np.isfinite(arr)
+        if int(np.count_nonzero(good)) >= min_unmasked:
+            pedestals.append(
+                _sigma_clipped_median(
+                    arr[good],
+                    sigma_clip=sigma_clip,
+                    max_iters=max_iters,
+                )
+            )
+        else:
+            pedestals.append(None)
+
+    valid_peds = [p for p in pedestals if p is not None]
+    if valid_peds:
+        ref_ped = float(np.median(valid_peds))
+    else:
+        any_valid = [
+            float(np.median(arr[(~f.mask) & np.isfinite(arr)]))
+            for f in frames
+            for arr in (np.asarray(f.image, dtype=np.float64),)
+            if np.any((~f.mask) & np.isfinite(arr))
+        ]
+        ref_ped = float(np.median(any_valid)) if any_valid else 0.0
+
+    stabilized: list[Frame] = []
+    for frame, ped in zip(frames, pedestals, strict=True):
+        arr = np.array(frame.image, dtype=np.float64, copy=True)
+        bad = np.asarray(frame.mask, dtype=bool) | ~np.isfinite(arr)
+        if ped is not None:
+            arr = arr - (ped - ref_ped)
+        elif not np.any(~bad):
+            # Render all-masked aligned frames uniformly at the sequence sky pedestal.
+            arr = np.full_like(arr, ref_ped)
+        filled = _inpaint_bad_pixels(
+            arr,
+            bad,
+            inpaint_size=inpaint_size,
+            fallback=ref_ped,
+        )
+        stabilized.append(frame.copy_with(image=filled))
+    return tuple(stabilized)
 
 
 def render_stack_png(
