@@ -45,7 +45,6 @@ KNOWN_TARGETS: dict[str, tuple[float, float]] = {
     "wise08550714": (133.75990, -7.24221),
     "wisej085510830714425": (133.75990, -7.24221),
     "barnard": (269.44633, 4.76762),
-    "barnardstar": (269.44633, 4.76762),
     "barnardsstar": (269.44633, 4.76762),
     "epsilonindib": (331.09568, -56.80089),
     "epsindib": (331.09568, -56.80089),

@@ -1095,7 +1095,7 @@ def create_app(
             epoch=epoch,
             cache_root=root,
             mode=data_mode,
-            timeout=gaia.default_timeout_sec(min_timeout=timeout_sec),
+            timeout=timeout_sec,
             base_warnings=metadata["warnings"],
         )
         body = copy.deepcopy(body)

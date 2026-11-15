@@ -296,7 +296,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--timeout",
         type=float,
         default=gaia.DEFAULT_TIMEOUT_SEC,
-        help=f"TAP request timeout in seconds (default: {gaia.DEFAULT_TIMEOUT_SEC:.1f}).",
+        help="TAP request timeout in seconds (default: 15.0).",
     )
     return parser
 
