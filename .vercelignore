@@ -1,0 +1,43 @@
+# Version control & local virtual environments
+.git
+.venv
+venv
+ENV
+
+# Python caches, test suites, docs, experiments, and saved outputs
+__pycache__
+*.py[cod]
+*$py.class
+.pytest_cache
+.ruff_cache
+/tests
+/docs
+/experiments
+/results
+/downloads
+/scratch
+/spaceapps
+/.tagthat
+
+# Secrets & environment files
+.env
+.env.*
+*.pem
+*.key
+*.crt
+*secret*
+*credentials*
+
+# Frontend dependencies, build output, and JS tests (frontend builds independently on Vercel)
+/frontend/node_modules
+/frontend/dist
+/frontend/tests
+**/*.tsbuildinfo
+
+# Unbundled scratch cutout caches (keep bundled targets and gaia/ under cache/)
+/cache/detector-2
+/cache/ra279.2347*
+/cache/selection-ra279.2347*
+
+.DS_Store
+Thumbs.db

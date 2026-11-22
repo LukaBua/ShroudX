@@ -794,12 +794,14 @@ def create_app(
     if max_irsa < 1:
         raise ValueError(f"irsa_concurrency must be >= 1, got {max_irsa}")
 
+    from frontend_compat import FrontendCompatibility, resolve_results_dir
+
     cache = ProductCache()
     irsa_semaphore = threading.BoundedSemaphore(max_irsa)
     application.state.products = cache
     application.state.data_mode = data_mode
     application.state.cache_root = root
-    motion_results = Path(results_root) if results_root is not None else ROOT / "results"
+    motion_results = resolve_results_dir(results_root, base_dir=ROOT)
     benchmark_file = (
         Path(benchmarks_path)
         if benchmarks_path is not None
@@ -1128,8 +1130,12 @@ def create_app(
 
     application.mount("/assets", StaticFiles(directory=ROOT / "frontend" / "dist" / "assets", check_dir=False), name="react_assets")
     application.mount("/static", StaticFiles(directory=ROOT / "static"), name="static")
-    from frontend_compat import FrontendCompatibility
-    application.add_middleware(FrontendCompatibility, cache_root=root, mode=data_mode)
+    application.add_middleware(
+        FrontendCompatibility,
+        cache_root=root,
+        mode=data_mode,
+        results_root=motion_results,
+    )
     return application
 
 

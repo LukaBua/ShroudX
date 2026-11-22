@@ -417,3 +417,44 @@ def test_react_deployment_contains_all_integrated_modules():
     assert 'matplotlib>=3.8.0' in project
     assert 'npm run build' in dockerfile and '/frontend/dist/' in dockerfile
     assert 'frontend_compat/' in dockerfile and 'experiments/' in dockerfile
+
+
+def test_vercel_services_configuration_and_temp_results_fallback(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """vercel.json defines FastAPI and Vite services with valid ordering and Vercel temp results."""
+    config = json.loads((ROOT / "vercel.json").read_text(encoding="utf-8"))
+    services = config["services"]
+    assert services["app"] == {
+        "root": ".",
+        "framework": "fastapi",
+        "entrypoint": "app:app",
+    }
+    assert services["frontend"] == {"root": "frontend", "framework": "vite"}
+
+    rewrites = config["rewrites"]
+    sources = [rule["source"] for rule in rewrites]
+    assert sources[-1] == "/(.*)"
+    assert rewrites[-1]["destination"] == {"service": "frontend"}
+    for api_rule in ("/api/(.*)", "/health", "/legacy", "/static/(.*)"):
+        idx = sources.index(api_rule)
+        assert rewrites[idx]["destination"] == {"service": "app"}
+        assert idx < len(rewrites) - 1
+
+    import tempfile
+
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setattr(tempfile, "tempdir", str(tmp_path))
+    application = backend.create_app(mode="synthetic", cache_root=tmp_path / "cache")
+    with TestClient(application) as client:
+        resp = client.get("/api/motion", params={"ra": "133.76", "dec": "-7.24", "fov": "120"})
+        assert resp.status_code == 200
+        compat_resp = client.get(
+            "/api/detections",
+            params={"ra": "133.79", "dec": "-7.245", "fov": "120"},
+            headers={"X-ShroudX-Frontend": "spaceapps"},
+        )
+        assert compat_resp.status_code == 200
+    assert list((tmp_path / "shroudx-results").glob("motion-*.json"))
+    assert list((tmp_path / "shroudx-results").glob("frontend-compat-*.json"))
+

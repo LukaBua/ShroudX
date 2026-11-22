@@ -12,8 +12,10 @@ import importlib
 import importlib.util
 import hashlib
 import json
+import os
 import re
 import sys
+import tempfile
 import uuid
 from contextvars import ContextVar
 from functools import wraps
@@ -127,11 +129,36 @@ def create_practice_app(cache_root: Path, mode: str):
     return original.app
 
 
+def resolve_results_dir(
+    results_root: str | Path | None = None,
+    *,
+    base_dir: Path | None = None,
+) -> Path:
+    """Resolve a writable directory for saved measurement artifacts."""
+    if results_root is not None:
+        return Path(results_root)
+    configured = os.environ.get("SPHX_RESULTS_DIR")
+    if configured:
+        return Path(configured)
+    temp_fallback = Path(tempfile.gettempdir()) / "shroudx-results"
+    if os.environ.get("VERCEL"):
+        return temp_fallback
+    candidate = (base_dir if base_dir is not None else Path(__file__).parent.parent) / "results"
+    try:
+        candidate.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=candidate, prefix=".writecheck-", delete=True):
+            pass
+        return candidate
+    except OSError:
+        return temp_fallback
+
+
 class FrontendCompatibility:
     """Dispatch the original frontend to its original scientific API implementation."""
 
-    def __init__(self, app, cache_root: Path, mode: str):
+    def __init__(self, app, cache_root: Path, mode: str, results_root: Path | None = None):
         self.app, self.cache_root, self.mode = app, cache_root, mode
+        self.results_root = resolve_results_dir(results_root)
         self.practice = None
 
     async def core_image_view(self, scope, receive, send):
@@ -254,8 +281,8 @@ class FrontendCompatibility:
                 key = hashlib.sha256(json.dumps(record, sort_keys=True).encode()).hexdigest()[:20]
                 record['command'] = (f'curl.exe --fail -H "X-ShroudX-Frontend: spaceapps" '
                                      f'"http://127.0.0.1:8000{path}"')
-                results = Path(__file__).parent.parent / 'results'
-                results.mkdir(exist_ok=True)
+                results = self.results_root
+                results.mkdir(parents=True, exist_ok=True)
                 target = results / f'frontend-compat-{key}.json'
                 temporary = target.with_suffix('.' + uuid.uuid4().hex + '.tmp')
                 temporary.write_text(json.dumps(record, indent=2), encoding='utf-8')
